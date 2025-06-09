@@ -1,12 +1,28 @@
 @import "tailwindcss";
+
+@theme {
+  --color-blue: #5575cc;
+  --color-lightblue: #8197d5;
+  --color-gray: #686868;
+  --color-corner: #e2e2e2;
+}
+
+.btn-primary {
+  @apply text-white text-sm px-6 py-2 rounded-md  min-w-60 hover:bg-blue bg-blue border-0 outline-0 focus:outline-0;
+}
+
+.btn-secondary {
+  @apply text-gray text-sm px-6 py-2 rounded-md min-w-60  bg-white border-1 border-corner outline-0 focus:outline-0;
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: #323232;
+  background-color: #ffffff;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
