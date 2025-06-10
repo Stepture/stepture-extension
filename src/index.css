@@ -5,6 +5,8 @@
   --color-lightblue: #8197d5;
   --color-gray: #686868;
   --color-corner: #e2e2e2;
+  --color-corner2: #e3e3e3;
+  --color-background: #f9f9f9;
 }
 
 .btn-primary {
@@ -19,11 +21,10 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
+  width: 100%;
   color-scheme: light dark;
   color: #323232;
   background-color: #ffffff;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
