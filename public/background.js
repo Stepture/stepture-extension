@@ -4,7 +4,9 @@ chrome.sidePanel
   .catch((error) => console.error(error));
 
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
-  console.log("Tab Url: ", tab.url);
+  if (isCapturing) {
+    console.log("Tab Url: ", tab.url);
+  }
 });
 
 let isCapturing = false;
