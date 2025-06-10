@@ -2,12 +2,15 @@ import { record } from "../constants/images";
 type Props = {
   color: string;
   text: string;
+  onClick?: () => void;
 };
 
 const Button = (props: Props) => {
   return (
     <div>
       <button
+        onClick={props.onClick}
+        type="button"
         className={props.color === "primary" ? "btn-primary" : "btn-secondary"}
       >
         <div className="flex items-center justify-center gap-1">
