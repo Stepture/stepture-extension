@@ -3,7 +3,7 @@ import Home from "./components/Home";
 
 function App() {
   return (
-    <div className="w-full">
+    <div className="w-full h-full flex items-center justify-center">
       <Home />
     </div>
   );
