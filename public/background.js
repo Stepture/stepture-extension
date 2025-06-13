@@ -1,96 +1,106 @@
-// Open the side panel when the extension icon is clicked
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch((error) => console.error(error));
-
 let isCapturing = false;
 let captureBuffer = [];
 let infoBuffer = [];
 const BATCH_SIZE = 3; // Save every 3 screenshots
 const BATCH_TIMEOUT = 2000; // Or after 2 seconds
 const MAX_STORAGE_ITEMS = 100; // Prevent memory issues
-
 let batchTimeout;
 
-// Batch save function
-async function saveBatch() {
-  if (captureBuffer.length === 0) return;
+// API : chrome.sidePanel
+// Purpose : The Side Panel API allows extensions to display their own UI in the side panel
+// Permission : "sidePanel" permission
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true }) // Open the side panel on clicking the icon.
+  .catch((error) => console.error(error));
+
+// API : chrome.scripting
+// Purpose : The Scripting API allows extensions to inject scripts into web pages
+// Permission : "scripting" permission
+const injectContentScript = async (tabId) => {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      files: ["content.js"],
+    });
+    console.log(`Content script injected into tab ${tabId}`);
+  } catch (error) {
+    console.error(`Failed to inject content script into tab ${tabId}:`, error);
+  }
+};
+
+// API : chrome.runtime.onInstalled
+// Purpose : The onInstalled event is fired when the extension is installed or updated
+// Permission : "runtime" permission
+chrome.runtime.onInstalled.addListener(async () => {
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+
+  if (!activeTab) {
+    console.log("No active tab found");
+    return;
+  }
+
+  // Skip restricted URLs - restricted URLS for security reasons
+  if (
+    !activeTab.url ||
+    activeTab.url.startsWith("chrome://") ||
+    activeTab.url.startsWith("chrome-extension://") ||
+    activeTab.url.startsWith("edge://") ||
+    activeTab.url.startsWith("about:")
+  ) {
+    return;
+  }
 
   try {
-    const data = await chrome.storage.local.get({ screenshots: [], info: [] });
-
-    // Limit total items to prevent memory issues
-    const totalItems = data.screenshots.length + captureBuffer.length;
-    let screenshots = data.screenshots;
-    let info = data.info;
-
-    if (totalItems > MAX_STORAGE_ITEMS) {
-      const itemsToRemove = totalItems - MAX_STORAGE_ITEMS;
-      screenshots = screenshots.slice(itemsToRemove);
-      info = info.slice(itemsToRemove);
-    }
-
-    const updatedScreenshots = [...screenshots, ...captureBuffer];
-    const updatedInfo = [...info, ...infoBuffer];
-
-    await chrome.storage.local.set({
-      screenshots: updatedScreenshots,
-      info: updatedInfo,
-    });
-
-    // Notify frontend about new data
-    try {
-      await chrome.runtime.sendMessage({
-        action: "data_updated",
-        newItemsCount: captureBuffer.length,
-        totalItems: updatedScreenshots.length,
-      });
-    } catch (e) {
-      // Ignore if frontend is not listening
-    }
-
-    console.log(
-      `Batch saved: ${captureBuffer.length} new items, ${updatedScreenshots.length} total`
-    );
-
-    // Clear buffers
-    captureBuffer = [];
-    infoBuffer = [];
+    injectContentScript(activeTab.id); // Inject content script into the tab where the extension is started
   } catch (error) {
-    console.error("Error saving batch:", error);
-  }
-}
-
-function scheduleBatchSave() {
-  clearTimeout(batchTimeout);
-  batchTimeout = setTimeout(saveBatch, BATCH_TIMEOUT);
-}
-
-chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
-  if (isCapturing && info.status === "complete") {
-    console.log("Tab Url: ", tab.url);
+    console.log(
+      `Failed to inject into active tab ${activeTab.id}:`,
+      error.message
+    );
   }
 });
 
+// API : chrome.tabs.onActivated
+// Purpose : The onActivated event is fired when a tab is activated or changed
+// Permission : "tabs" permission
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  if (isCapturing) {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    injectContentScript(tab.id); // inject content script into the newly activated or changed tab
+  }
+});
+
+// API : chrome.runtime.onMessage
+// Purpose : The onMessage event is fired when a message is sent from another part of the extension
+// Permission : "runtime" permission
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case "startCapture":
-      console.log("Starting capture...");
       isCapturing = true;
+
+      // inject content script current active tab
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+          const activeTab = tabs[0];
+          injectContentScript(activeTab.id);
+        } else {
+          console.warn("No active tab found to inject content script.");
+        }
+      });
       sendResponse({ success: true, isCapturing: true });
       break;
 
     case "stopCapture":
-      console.log("Stopping capture...");
       isCapturing = false;
-      // Save any remaining items
       if (captureBuffer.length > 0) {
         saveBatch();
       }
       sendResponse({ success: true, isCapturing: false });
       break;
     case "pauseCapture":
-      console.log("Pausing capture...");
       isCapturing = false;
       // Save any remaining items
       if (captureBuffer.length > 0) {
@@ -99,7 +109,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true, isCapturing: false });
       break;
     case "resumeCapture":
-      console.log("Resuming capture...");
       isCapturing = true;
       // Notify frontend about capture status change
       chrome.runtime.sendMessage({
@@ -112,6 +121,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      // API : chrome.tabs.captureVisibleTab
+      // Purpose : Capture a screenshot of the visible area of the currently active tab
+      // Permission : "tabs" permission
       chrome.tabs.captureVisibleTab(
         null,
         { format: "png" },
@@ -173,7 +185,64 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Save remaining items when extension is shutting down
+// Batch save function
+async function saveBatch() {
+  if (captureBuffer.length === 0) return;
+
+  try {
+    const data = await chrome.storage.local.get({ screenshots: [], info: [] });
+
+    // Limit total items to prevent memory issues
+    const totalItems = data.screenshots.length + captureBuffer.length;
+    let screenshots = data.screenshots;
+    let info = data.info;
+
+    if (totalItems > MAX_STORAGE_ITEMS) {
+      const itemsToRemove = totalItems - MAX_STORAGE_ITEMS;
+      screenshots = screenshots.slice(itemsToRemove);
+      info = info.slice(itemsToRemove);
+    }
+
+    const updatedScreenshots = [...screenshots, ...captureBuffer];
+    const updatedInfo = [...info, ...infoBuffer];
+
+    await chrome.storage.local.set({
+      screenshots: updatedScreenshots,
+      info: updatedInfo,
+    });
+
+    // Notify frontend about new data
+    try {
+      await chrome.runtime.sendMessage({
+        action: "data_updated",
+        newItemsCount: captureBuffer.length,
+        totalItems: updatedScreenshots.length,
+      });
+    } catch (e) {
+      // Ignore if frontend is not listening
+    }
+
+    console.log(
+      `Batch saved: ${captureBuffer.length} new items, ${updatedScreenshots.length} total`
+    );
+
+    // Clear buffers
+    captureBuffer = [];
+    infoBuffer = [];
+  } catch (error) {
+    console.error("Error saving batch:", error);
+  }
+}
+
+// Schedule batch save after a timeout
+function scheduleBatchSave() {
+  clearTimeout(batchTimeout);
+  batchTimeout = setTimeout(saveBatch, BATCH_TIMEOUT);
+}
+
+// API : chrome.runtime.onSuspend
+// Purpose : The onSuspend event is fired when the extension is about to be unloaded
+// Permission : "runtime" permission
 chrome.runtime.onSuspend.addListener(() => {
   if (captureBuffer.length > 0) {
     saveBatch();
