@@ -10,13 +10,21 @@
 }
 
 .btn-primary {
-  @apply text-white text-sm px-6 py-2 rounded-md  min-w-60 hover:bg-blue bg-blue border-0 outline-0 focus:outline-0;
+  @apply text-white text-sm px-6 py-2 rounded-md w-full min-w-60 hover:bg-blue bg-blue border-0 outline-0 focus:outline-0;
 }
 
 .btn-secondary {
-  @apply text-gray text-sm px-6 py-2 rounded-md min-w-60  bg-white border-1 border-corner outline-0 focus:outline-0;
+  @apply text-gray text-sm px-6 py-2 rounded-md min-w-40 w-full  bg-white border-1 border-corner outline-0 focus:outline-0;
 }
 
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+
+  -ms-overflow-style: none; /* Internet Explorer and Edge */
+  &::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+  }
+}
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -29,6 +37,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* height: 100vh; */
 }
 
 a {

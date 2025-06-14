@@ -3,6 +3,7 @@ type Props = {
   color: string;
   text: string;
   onClick?: () => void;
+  disabled?: boolean;
 };
 
 const Button = (props: Props) => {

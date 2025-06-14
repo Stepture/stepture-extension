@@ -1,45 +1,247 @@
 import Button from "./Button";
 import { stepture } from "../constants/images";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 interface ElementInfo {
   textContent: string;
-  tagName: string;
-  className: string;
-  id: string;
+
+  // for future use
+  // tagName: string;
+  // className: string;
+  // id: string;
+  // href?: string;
+  // type?: string;
+  // value?: string;
+  // placeholder?: string;
+  // timestamp?: string;
+  // url?: string;
+  // xpath?: string;
 }
 
 const Home = () => {
-  const [capture, setCapture] = useState(false);
+  const [isCaptured, setIsCaptured] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+
   const [screenshots, setScreenshots] = useState<string[]>([]);
   const [info, setInfo] = useState<ElementInfo[]>([]);
+  // const [bufferSize, setBufferSize] = useState(0);
 
-  const handleStartCapture = () => {
-    setCapture(true);
-    chrome.runtime.sendMessage({ action: "startCapture" });
-  };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleStopCapture = () => {
-    setCapture(false);
-    chrome.runtime.sendMessage({ action: "stopCapture" });
-  };
+  // Ref to prevent multiple simultaneous loads
+  const loadingRef = useRef(false);
 
-  useEffect(() => {
-    chrome.storage.local.get(["screenshots", "info"], (data) => {
-      if (data.screenshots) {
-        setScreenshots(data.screenshots);
+  // Load data from storage
+  const loadData = useCallback(async (forceRefresh = false) => {
+    if (loadingRef.current && !forceRefresh) return; // Prevent multiple loads
+
+    loadingRef.current = true;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({ action: "get_data" });
+      if (response && response.success) {
+        setScreenshots(response.data.screenshots || []);
+        setInfo(response.data.info || []);
+        setIsCaptured(response.isCapturing || false);
+        // setBufferSize(response.bufferSize || 0);
+      } else {
+        throw new Error(response?.error || "Failed to load data");
       }
-      if (data.info) {
-        setInfo(data.info);
+    } catch (error) {
+      console.error("Error loading data:", error);
+      setError("Failed to load data. Please try again.");
+
+      // Fallback to storage AP
+      try {
+        chrome.storage.local.get(["screenshots", "info"], (data) => {
+          if (chrome.runtime.lastError) {
+            console.error("Storage error:", chrome.runtime.lastError);
+            return;
+          }
+          setScreenshots(data.screenshots || []);
+          setInfo(data.info || []);
+        });
+      } catch (storageError) {
+        console.error("Storage fallback failed:", storageError);
       }
-    });
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
   }, []);
+
+  // Handle start capture
+  const handleStartCapture = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "startCapture",
+      });
+
+      if (response && response.success) {
+        setIsCaptured(true);
+      } else {
+        throw new Error(response?.error || "Failed to start capture");
+      }
+    } catch (error) {
+      console.error("Error starting capture:", error);
+      setError("Failed to start capture. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleResumeCapture = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "resumeCapture",
+      });
+
+      if (response && response.success) {
+        setIsPaused(false);
+      } else {
+        throw new Error(response?.error || "Failed to resume capture");
+      }
+    } catch (error) {
+      console.error("Error resuming capture:", error);
+      setError("Failed to resume capture. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handlePauseCapture = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "pauseCapture",
+      });
+
+      if (response && response.success) {
+        setIsPaused(true);
+      } else {
+        throw new Error(response?.error || "Failed to pause capture");
+      }
+    } catch (error) {
+      console.error("Error pausing capture:", error);
+      setError("Failed to pause capture. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  // Handle stop capture
+  const handleStopCapture = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "stopCapture",
+      });
+
+      if (response && response.success) {
+        setIsCaptured(false);
+        // Refresh data to get any final buffered items
+        setTimeout(() => loadData(true), 500);
+      } else {
+        throw new Error(response?.error || "Failed to stop capture");
+      }
+    } catch (error) {
+      console.error("Error stopping capture:", error);
+      setError("Failed to stop capture. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+
+    handleClearData();
+  }, [loadData]);
+
+  // Handle clear data
+  const handleClearData = useCallback(async () => {
+    if (!confirm("Are you sure you want to clear all captured data?")) return;
+
+    setLoading(true);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "clear_data",
+      });
+
+      if (response && response.success) {
+        setScreenshots([]);
+        setInfo([]);
+        // setBufferSize(0);
+      } else {
+        throw new Error("Failed to clear data");
+      }
+    } catch (error) {
+      console.error("Error clearing data:", error);
+      setError("Failed to clear data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Listen for real-time updates from background script
+  useEffect(() => {
+    const messageListener = (message: any) => {
+      if (message.action === "data_updated") {
+        console.log(
+          `New data: ${message.newItemsCount} items, ${message.totalItems} total`
+        );
+        loadData(true); // Force refresh when new data arrives
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(messageListener);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, [loadData]);
+
+  // Initial data load
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Auto-refresh data every 10 seconds when capturing
+  useEffect(() => {
+    if (!isCaptured) return;
+
+    const interval = setInterval(() => {
+      loadData();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isCaptured, loadData]);
 
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
-      {!capture ? (
-        <>
-          {" "}
+      {/* Error display */}
+      {error && (
+        <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
+          <button
+            onClick={() => setError(null)}
+            className="ml-2 text-red-500 hover:text-red-700"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {!isCaptured ? (
+        <div className="flex flex-col items-center justify-center w-full h-100vh">
           <img src={stepture} alt="Stepture Logo" className="w-18 h-18" />
           <p className="font-semibold mt-2 text-lg">Hey there, MB Triad!</p>
           <p className="text-gray text-xs mb-8 mt-2">
@@ -48,62 +250,142 @@ const Home = () => {
           <Button
             onClick={handleStartCapture}
             color="primary"
-            text="Start Capture"
+            text={loading ? "Starting..." : "Start Capture"}
+            disabled={loading}
           />
-        </>
+
+          {/* Show existing screenshots count */}
+          {screenshots.length > 0 && (
+            <p className="text-sm text-gray-600 mt-4">
+              {screenshots.length} screenshots saved
+            </p>
+          )}
+        </div>
       ) : (
-        <>
-          <div className="mt-6 w-full bg-background p-4 rounded-md">
+        <div className="relative w-full">
+          {/* Status bar */}
+          {/* <div className="w-full mb-4 p-2 bg-blue-50 border border-blue-200 rounded text-center">
+            <p className="text-sm text-blue-700">
+              Stepture is Capturing... ({screenshots.length} steps)
+              {bufferSize > 0 && ` | ${bufferSize} pending`}
+            </p>
+          </div> */}
+
+          <div className="mt-6 w-full bg-background p-4 rounded-md overflow-y-scroll no-scrollbar mb-40">
             <div className="screenshots grid gap-4">
-              {screenshots.length > 0 ? (
+              {loading && screenshots.length === 0 ? (
+                <p className="text-center text-gray-500">Loading...</p>
+              ) : screenshots.length > 0 ? (
                 screenshots.map((img, index) => (
                   <div
-                    key={index}
+                    key={`${index}-${img.substring(0, 20)}`} // Better key
                     className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
                   >
-                    <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1 ">
+                    <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
                       <p className="text-xs text-blue">Step {index + 1}</p>
                     </div>
                     <div className="text-start p-2 text-base text-slate-800">
                       {info[index] && (
-                        <>
+                        <div className="space-y-1">
                           <p>
-                            Click:{" "}
-                            {info[index].textContent && (
-                              <span className="text-slate-600">
-                                {info[index].textContent}
-                              </span>
-                            )}
+                            <span className="font-medium">Click:</span>{" "}
+                            <span className="text-slate-600">
+                              {info[index].textContent && (
+                                <span className="text-slate-800">
+                                  "{info[index].textContent}"
+                                </span>
+                              )}
+                            </span>
                           </p>
-                        </>
+                          {/* For future use - url name and timestamp */}
+                          {/* {info[index].url && (
+                            <p className="text-xs text-slate-500 truncate">
+                              {info[index].url}
+                            </p>
+                          )}
+                          {info[index].timestamp && (
+                            <p className="text-xs text-slate-400">
+                              {new Date(
+                                info[index].timestamp!
+                              ).toLocaleTimeString()}
+                            </p>
+                          )} */}
+                        </div>
                       )}
                     </div>
                     <img
                       src={img}
                       alt={`Screenshot ${index}`}
                       className="screenshot-img w-full rounded-md"
+                      loading="lazy" // Optimize image loading
                     />
                   </div>
                 ))
               ) : (
-                <p>No screenshots captured yet.</p>
+                <p className="text-center text-gray-500">
+                  No screenshots captured yet. Click on elements to start
+                  capturing!
+                </p>
               )}
             </div>
           </div>
-          <div className="fixed bottom-2 left-0 right-0 flex justify-center items-center z-10">
-            <Button
-              onClick={handleStopCapture}
-              color="primary"
-              text="Stop Capture"
-            />
+
+          {/* Action buttons */}
+          <div className="fixed bottom-0 left-0 right-0 flex justify-center items-center gap-2 flex-col border-t border-corner bg-white p-4 rounded-md shadow-md">
+            {isPaused && (
+              <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-center">
+                <p className="text-sm text-yellow-700">
+                  Capture is paused. Click "Resume" to continue.
+                </p>
+              </div>
+            )}
+            <div className="mt-4 flex justify-between items-center">
+              <Button
+                onClick={handleClearData}
+                color="secondary"
+                text="Delete"
+                disabled={loading}
+              />
+              {!isPaused ? (
+                <Button
+                  onClick={handlePauseCapture}
+                  color="secondary"
+                  text="Pause"
+                  disabled={loading}
+                />
+              ) : (
+                <Button
+                  onClick={handleResumeCapture}
+                  color="secondary"
+                  text="Resume"
+                  disabled={loading}
+                />
+              )}
+            </div>
+            <div className="w-full flex justify-center items-center gap-2">
+              <Button
+                onClick={handleStopCapture}
+                color="primary"
+                text={loading ? "Stopping..." : "Stop Capture"}
+                disabled={loading}
+              />
+            </div>
           </div>
-        </>
+        </div>
       )}
 
-      {!capture && (
+      {!isCaptured && (
         <>
           <hr className="border-gray-300 w-full my-8" />
           <Button color="secondary" text="View your docs" />
+          {screenshots.length > 0 && (
+            <Button
+              onClick={handleClearData}
+              color="secondary"
+              text="Clear All Data"
+              disabled={loading}
+            />
+          )}
         </>
       )}
     </div>
