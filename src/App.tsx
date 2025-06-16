@@ -9,10 +9,13 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const res = await fetch("http://localhost:8000/auth/session", {
-        method: "GET",
-        credentials: "include",
-      });
+      const res = await fetch(
+        import.meta.env.VITE_BACKEND_URL + `/auth/session`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
       const data = await res.json();
       setIsLoggedIn(!!data.isLoggedIn);
     } catch (e) {

@@ -2,7 +2,7 @@ import React from "react";
 import Button from "./Button";
 import { stepture } from "../constants/images";
 
-const FRONTEND_URL = "http://localhost:3000";
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
 
 export const Login: React.FC = () => {
   const loginWithGoogle = () => {

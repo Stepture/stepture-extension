@@ -69,6 +69,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Check auth status when returning from login or when URL contains auth-related paths
   if (
+    changeInfo.status === "complete" &&
     tab.url &&
     (tab.url.includes("localhost:3000/auth/success") ||
       tab.url.includes("localhost:3000/login") ||
