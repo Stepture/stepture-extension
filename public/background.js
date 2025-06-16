@@ -63,6 +63,22 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
+// API : chrome.tabs.onUpdated
+// Purpose : The onUpdated event is fired when a tab is updated (e.g., URL change)
+// Permission : "tabs" permission
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Check auth status when returning from login or when URL contains auth-related paths
+  if (
+    changeInfo.status === "complete" &&
+    tab.url &&
+    (tab.url.includes("localhost:3000/auth/success") ||
+      tab.url.includes("localhost:3000/login") ||
+      tab.url.includes("localhost:3000/logout"))
+  ) {
+    checkAuthStatus();
+  }
+});
+
 // API : chrome.tabs.onActivated
 // Purpose : The onActivated event is fired when a tab is activated or changed
 // Permission : "tabs" permission
@@ -248,3 +264,20 @@ chrome.runtime.onSuspend.addListener(() => {
     saveBatch();
   }
 });
+
+// Helper function to check authentication status
+async function checkAuthStatus() {
+  try {
+    const response = await fetch("http://localhost:8000/auth/session", {
+      method: "GET",
+      credentials: "include",
+    });
+    const data = await response.json();
+    chrome.runtime.sendMessage({
+      type: "CHECK_AUTH_STATUS",
+      isLoggedIn: data.isLoggedIn,
+    });
+  } catch (error) {
+    console.error("Auth status check error:", error);
+  }
+}
