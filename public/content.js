@@ -49,13 +49,21 @@ document.addEventListener("click", async (event) => {
     placeholder: element.placeholder || "None",
     timestamp: new Date().toISOString(),
     url: window.location.href,
-    xpath: getXPath(element),
+    // xpath: getXPath(element),
   };
 
   try {
+    await chrome.runtime.sendMessage({
+      action: "capture_start",
+    });
+
     const response = await chrome.runtime.sendMessage({
       action: "capture_screenshot",
       data: elementInfo,
+    });
+
+    await chrome.runtime.sendMessage({
+      action: "capture_finish",
     });
 
     if (response && response.success) {
@@ -71,38 +79,38 @@ document.addEventListener("click", async (event) => {
 });
 
 // Helper function to get XPath of element
-function getXPath(element) {
-  if (!element) return "";
+// function getXPath(element) {
+//   if (!element) return "";
 
-  if (element.id) {
-    return `//*[@id="${element.id}"]`;
-  }
+//   if (element.id) {
+//     return `//*[@id="${element.id}"]`;
+//   }
 
-  if (element === document.body) {
-    return "/html/body";
-  }
+//   if (element === document.body) {
+//     return "/html/body";
+//   }
 
-  let path = "";
-  let current = element;
+//   let path = "";
+//   let current = element;
 
-  while (current && current !== document.body) {
-    const tagName = current.tagName.toLowerCase();
-    const siblings = Array.from(current.parentNode?.children || []).filter(
-      (sibling) => sibling.tagName === current.tagName
-    );
+//   while (current && current !== document.body) {
+//     const tagName = current.tagName.toLowerCase();
+//     const siblings = Array.from(current.parentNode?.children || []).filter(
+//       (sibling) => sibling.tagName === current.tagName
+//     );
 
-    if (siblings.length > 1) {
-      const index = siblings.indexOf(current) + 1;
-      path = `/${tagName}[${index}]${path}`;
-    } else {
-      path = `/${tagName}${path}`;
-    }
+//     if (siblings.length > 1) {
+//       const index = siblings.indexOf(current) + 1;
+//       path = `/${tagName}[${index}]${path}`;
+//     } else {
+//       path = `/${tagName}${path}`;
+//     }
 
-    current = current.parentNode;
-  }
+//     current = current.parentNode;
+//   }
 
-  return `/html/body${path}`;
-}
+//   return `/html/body${path}`;
+// }
 
 // Optional: Visual feedback for clicks
 function showClickFeedback(element) {

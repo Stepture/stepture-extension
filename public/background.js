@@ -16,7 +16,20 @@ chrome.sidePanel
 // API : chrome.scripting
 // Purpose : The Scripting API allows extensions to inject scripts into web pages
 // Permission : "scripting" permission
-const injectContentScript = async (tabId) => {
+const injectContentScript = async (tabId, tabUrl) => {
+  if (
+    !tabId ||
+    !tabUrl ||
+    tabUrl.startsWith("chrome://") ||
+    tabUrl.startsWith("chrome-extension://") ||
+    tabUrl.startsWith("edge://") ||
+    tabUrl.startsWith("about:")
+  ) {
+    console.warn(
+      `Skipping content script injection for tab ${tabId} with URL ${tabUrl}`
+    );
+    return;
+  }
   try {
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -42,19 +55,8 @@ chrome.runtime.onInstalled.addListener(async () => {
     return;
   }
 
-  // Skip restricted URLs - restricted URLS for security reasons
-  if (
-    !activeTab.url ||
-    activeTab.url.startsWith("chrome://") ||
-    activeTab.url.startsWith("chrome-extension://") ||
-    activeTab.url.startsWith("edge://") ||
-    activeTab.url.startsWith("about:")
-  ) {
-    return;
-  }
-
   try {
-    injectContentScript(activeTab.id); // Inject content script into the tab where the extension is started
+    injectContentScript(activeTab.id, activeTab.url); // Inject content script into the tab where the extension is started
   } catch (error) {
     console.log(
       `Failed to inject into active tab ${activeTab.id}:`,
@@ -85,7 +87,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   if (isCapturing) {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    injectContentScript(tab.id); // inject content script into the newly activated or changed tab
+    injectContentScript(tab.id, tab.url); // inject content script into the newly activated or changed tab
   }
 });
 
@@ -101,7 +103,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs.length > 0) {
           const activeTab = tabs[0];
-          injectContentScript(activeTab.id);
+          injectContentScript(activeTab.id, activeTab.url);
         } else {
           console.warn("No active tab found to inject content script.");
         }
@@ -137,6 +139,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      // chrome.runtime.sendMessage({
+      //   action: "capture_start",
+      //   data: message.data,
+      // });
+
       // API : chrome.tabs.captureVisibleTab
       // Purpose : Capture a screenshot of the visible area of the currently active tab
       // Permission : "tabs" permission
@@ -163,6 +170,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } else {
             scheduleBatchSave();
           }
+
+          // chrome.runtime
+          //   .sendMessage({
+          //     action: "capture_finish",
+          //     data: {
+          //       success: true,
+          //       screenshot: dataUrl,
+          //       elementInfo: message.data,
+          //       buffered: captureBuffer.length,
+          //     },
+          //   })
+          //   .catch(() => {
+          //     // Ignore if frontend is not listening
+          //   });
 
           sendResponse({ success: true, buffered: captureBuffer.length });
         }
@@ -193,6 +214,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         isCapturing: isCapturing,
         bufferSize: captureBuffer.length,
       });
+      break;
+
+    case "capture_start":
+      break;
+
+    case "capture_finish":
       break;
 
     default:
