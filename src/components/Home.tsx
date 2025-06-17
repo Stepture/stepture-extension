@@ -24,13 +24,28 @@ const Home = () => {
 
   const [screenshots, setScreenshots] = useState<string[]>([]);
   const [info, setInfo] = useState<ElementInfo[]>([]);
-  // const [bufferSize, setBufferSize] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [newScreenshotLoading, setNewScreenshotLoading] = useState(false);
+
   // Ref to prevent multiple simultaneous loads
   const loadingRef = useRef(false);
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === "capture_start") {
+      setNewScreenshotLoading(true);
+      console.log("Capture started");
+    }
+
+    if (message.action === "capture_finish") {
+      setTimeout(() => {
+        setNewScreenshotLoading(false);
+        console.log("Capture completed");
+      }, 2000); // Simulate delay for UI update
+    }
+  });
 
   // Load data from storage
   const loadData = useCallback(async (forceRefresh = false) => {
@@ -39,6 +54,8 @@ const Home = () => {
     loadingRef.current = true;
     setLoading(true);
     setError(null);
+
+    setTimeout(() => {}, 1000); // Allow UI to update before loading
 
     try {
       const response = await chrome.runtime.sendMessage({ action: "get_data" });
@@ -215,15 +232,15 @@ const Home = () => {
   }, [loadData]);
 
   // Auto-refresh data every 10 seconds when capturing
-  useEffect(() => {
-    if (!isCaptured) return;
+  // useEffect(() => {
+  //   if (!isCaptured) return;
 
-    const interval = setInterval(() => {
-      loadData();
-    }, 10000);
+  //   const interval = setInterval(() => {
+  //     loadData();
+  //   }, 10000);
 
-    return () => clearInterval(interval);
-  }, [isCaptured, loadData]);
+  //   return () => clearInterval(interval);
+  // }, [isCaptured, loadData]);
 
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
@@ -326,6 +343,20 @@ const Home = () => {
                   No screenshots captured yet. Click on elements to start
                   capturing!
                 </p>
+              )}
+              {newScreenshotLoading && (
+                // show the loading skeleton
+                <div className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1">
+                  <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
+                    <p className="text-xs text-blue">Loading new step...</p>
+                  </div>
+                  <div className="text-start p-2 text-base text-slate-800">
+                    <p className="text-gray-500">
+                      New step is being captured...
+                    </p>
+                  </div>
+                  <div className="w-full h-48 bg-gray-200 animate-pulse rounded-md"></div>
+                </div>
               )}
             </div>
           </div>
