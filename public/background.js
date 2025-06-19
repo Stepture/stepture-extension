@@ -295,7 +295,7 @@ chrome.runtime.onSuspend.addListener(() => {
 // Helper function to check authentication status
 async function checkAuthStatus() {
   try {
-    const response = await fetch("http://localhost:8000/auth/session", {
+    const response = await fetch("http://localhost:8000/auth/me", {
       method: "GET",
       credentials: "include",
     });
