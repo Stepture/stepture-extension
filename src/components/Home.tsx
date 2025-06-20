@@ -18,7 +18,7 @@ interface ElementInfo {
   // xpath?: string;
 }
 
-const Home = () => {
+const Home = ({ name }: { name: string }) => {
   const [isCaptured, setIsCaptured] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -260,7 +260,7 @@ const Home = () => {
       {!isCaptured ? (
         <div className="flex flex-col items-center justify-center w-full h-100vh">
           <img src={stepture} alt="Stepture Logo" className="w-18 h-18" />
-          <p className="font-semibold mt-2 text-lg">Hey there, MB Triad!</p>
+          <p className="font-semibold mt-2 text-lg">Hey There, {name}</p>
           <p className="text-gray text-xs mb-8 mt-2">
             You can start by capturing your steps.
           </p>
