@@ -1,14 +1,14 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URLL || "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
-// const publicApi = axios.create({
-//   baseURL: BASE_URL,
-//   timeout: 10000,
-//   headers: {
-//     "Content-Type": "application/json",
-//   },
-// });
+const publicApi = axios.create({
+  baseURL: BASE_URL,
+  timeout: 10000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
 const privateApi = axios.create({
   baseURL: BASE_URL,
@@ -20,7 +20,7 @@ const privateApi = axios.create({
 });
 
 async function refreshToken() {
-  await privateApi.get("/auth/refresh-token");
+  await publicApi.get("/auth/refresh-token");
 }
 
 let isRefreshing = false;
