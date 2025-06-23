@@ -58,16 +58,7 @@ document.addEventListener("click", async (event) => {
     // Coordinates information
     coordinates: {
       viewport: { x: viewportX, y: viewportY },
-      page: { x: pageX, y: pageY },
-      // Also include element dimensions for better context
-      elementRect: {
-        top: element.getBoundingClientRect().top,
-        left: element.getBoundingClientRect().left,
-        width: element.getBoundingClientRect().width,
-        height: element.getBoundingClientRect().height,
-      },
     },
-    // xpath: getXPath(element),
   };
 
   try {
@@ -137,7 +128,7 @@ function showClickFeedback(element, x, y) {
     position: absolute;
     width: 20px;
     height: 20px;
-    background: #4CAF50;
+    background: #6495ED;
     border-radius: 50%;
     pointer-events: none;
     z-index: 10000;
@@ -157,7 +148,6 @@ function showClickFeedback(element, x, y) {
     document.head.appendChild(styles);
   }
 
-  // Use the exact click coordinates instead of element center
   feedback.style.left = x - 10 + "px";
   feedback.style.top = y - 10 + "px";
 

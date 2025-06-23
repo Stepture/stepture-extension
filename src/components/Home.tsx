@@ -6,194 +6,402 @@ interface ElementInfo {
   textContent: string;
   coordinates: {
     viewport: { x: number; y: number };
-    page: { x: number; y: number };
-    elementRect: {
-      top: number;
-      left: number;
-      width: number;
-      height: number;
-    };
   };
-
-  // for future use
-  // tagName: string;
-  // className: string;
-  // id: string;
-  // href?: string;
-  // type?: string;
-  // value?: string;
-  // placeholder?: string;
-  // timestamp?: string;
-  // url?: string;
-  // xpath?: string;
 }
+
+interface ChromeMessage {
+  action: string;
+  newItemsCount?: number;
+  totalItems?: number;
+  success?: boolean;
+  error?: string;
+  data?: {
+    screenshots: string[];
+    info: ElementInfo[];
+  };
+  isCapturing?: boolean;
+}
+
+// Responsive Screenshot Item Component
+const ResponsiveScreenshotItem = ({
+  img,
+  index,
+  info,
+}: {
+  img: string;
+  index: number;
+  info: ElementInfo;
+}) => {
+  const [imageDimensions, setImageDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [containerWidth, setContainerWidth] = useState(0);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle image load to get original dimensions
+  const handleImageLoad = useCallback(() => {
+    const imgElement = imgRef.current;
+    if (imgElement) {
+      setImageDimensions({
+        width: imgElement.naturalWidth,
+        height: imgElement.naturalHeight,
+      });
+    }
+  }, []);
+
+  // Calculate responsive position based on current container width
+  const getResponsivePosition = useCallback(() => {
+    if (
+      !info?.coordinates ||
+      imageDimensions.width === 0 ||
+      containerWidth === 0
+    ) {
+      return { left: "50%", top: "50%" };
+    }
+
+    // Calculate the displayed image dimensions
+    const containerPadding = 16; // Account for container padding
+    const availableWidth = containerWidth - containerPadding;
+    const imageAspectRatio = imageDimensions.height / imageDimensions.width;
+    const displayedImageWidth = availableWidth;
+    const displayedImageHeight = displayedImageWidth * imageAspectRatio;
+
+    const scaleX = displayedImageWidth / imageDimensions.width;
+    const scaleY = displayedImageHeight / imageDimensions.height;
+
+    const clickX = info.coordinates.viewport.x * scaleX;
+    const clickY = info.coordinates.viewport.y * scaleY;
+
+    const xPercent = (clickX / displayedImageWidth) * 100;
+    const yPercent = (clickY / displayedImageHeight) * 100;
+
+    return {
+      left: `${Math.min(Math.max(xPercent, 0), 100)}%`,
+      top: `${Math.min(Math.max(yPercent, 0), 100)}%`,
+    };
+  }, [info, imageDimensions, containerWidth]);
+
+  // Get responsive indicator size
+  const getIndicatorSize = useCallback(() => {
+    if (containerWidth === 0) return 32;
+
+    // Scale indicator based on container width
+    const baseSize = 32;
+    const scaleFactor = Math.min(containerWidth / 400, 1.5); // Max 1.5x scaling
+    return Math.max(16, Math.min(48, baseSize * scaleFactor));
+  }, [containerWidth]);
+
+  // Set up ResizeObserver to track container width changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateContainerWidth = () => {
+      setContainerWidth(container.clientWidth);
+    };
+
+    // Initial measurement
+    updateContainerWidth();
+
+    // Use ResizeObserver for efficient resize detection
+    const resizeObserver = new ResizeObserver(() => {
+      updateContainerWidth();
+    });
+
+    resizeObserver.observe(container);
+
+    // Fallback: Listen to window resize (for older browsers)
+    const handleResize = () => updateContainerWidth();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  // Also listen for extension sidebar resize events
+  useEffect(() => {
+    const handleSidebarResize = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
+    };
+
+    // Chrome extension specific resize detection
+    const observer = new MutationObserver(() => {
+      handleSidebarResize();
+    });
+
+    if (containerRef.current && document.body) {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["style", "class"],
+      });
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
+    >
+      <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
+        <p className="text-xs text-blue">Step {index + 1}</p>
+      </div>
+
+      <div className="text-start p-2 text-base text-slate-800">
+        {info && (
+          <div className="space-y-1">
+            <p>
+              <span className="font-medium">Click:</span>{" "}
+              <span className="text-slate-600">
+                {info.textContent && (
+                  <span className="text-slate-800">"{info.textContent}"</span>
+                )}
+              </span>
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="relative w-full">
+        <img
+          ref={imgRef}
+          src={img}
+          alt={`Screenshot ${index + 1}`}
+          className="screenshot-img w-full rounded-md block"
+          loading="lazy"
+          onLoad={handleImageLoad}
+          onError={() =>
+            console.error(`Failed to load image for step ${index + 1}`)
+          }
+        />
+
+        {info?.coordinates &&
+          imageDimensions.width > 0 &&
+          containerWidth > 0 && (
+            <div
+              className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
+              style={{
+                ...getResponsivePosition(),
+                width: `${getIndicatorSize()}px`,
+                height: `${getIndicatorSize()}px`,
+              }}
+              aria-label={`Click indicator for step ${index + 1}`}
+            >
+              <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
+            </div>
+          )}
+      </div>
+    </div>
+  );
+};
+
+// Loading skeleton component
+const LoadingSkeleton = () => (
+  <div className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1">
+    <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
+      <p className="text-xs text-blue">Loading new step...</p>
+    </div>
+    <div className="text-start p-2 text-base text-slate-800">
+      <p className="text-gray-500">New step is being captured...</p>
+    </div>
+    <div className="w-full h-48 bg-gray-200 animate-pulse rounded-md"></div>
+  </div>
+);
+
+// Error display component
+const ErrorDisplay = ({
+  error,
+  onDismiss,
+}: {
+  error: string;
+  onDismiss: () => void;
+}) => (
+  <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+    {error}
+    <button
+      onClick={onDismiss}
+      className="ml-2 text-red-500 hover:text-red-700"
+      aria-label="Dismiss error"
+    >
+      ×
+    </button>
+  </div>
+);
 
 const Home = ({ name }: { name: string }) => {
   const [isCaptured, setIsCaptured] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-
   const [screenshots, setScreenshots] = useState<string[]>([]);
   const [info, setInfo] = useState<ElementInfo[]>([]);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [newScreenshotLoading, setNewScreenshotLoading] = useState(false);
 
   // Ref to prevent multiple simultaneous loads
   const loadingRef = useRef(false);
 
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.action === "capture_start") {
-      setNewScreenshotLoading(true);
-      console.log("Capture started");
-    }
-
-    if (message.action === "capture_finish") {
-      setTimeout(() => {
-        setNewScreenshotLoading(false);
-        console.log("Capture completed");
-      }, 2000); // Simulate delay for UI update
-    }
-  });
-
-  console.log("Info:", info);
-
-  // Load data from storage
-  const loadData = useCallback(async (forceRefresh = false) => {
-    if (loadingRef.current && !forceRefresh) return; // Prevent multiple loads
-
-    loadingRef.current = true;
-    setLoading(true);
-    setError(null);
-
-    setTimeout(() => {}, 1000); // Allow UI to update before loading
-
-    try {
-      const response = await chrome.runtime.sendMessage({ action: "get_data" });
-      if (response && response.success) {
-        setScreenshots(response.data.screenshots || []);
-        setInfo(response.data.info || []);
-        setIsCaptured(response.isCapturing || false);
-        // setBufferSize(response.bufferSize || 0);
-      } else {
-        throw new Error(response?.error || "Failed to load data");
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      setError("Failed to load data. Please try again.");
-
-      // Fallback to storage AP
-      try {
-        chrome.storage.local.get(["screenshots", "info"], (data) => {
-          if (chrome.runtime.lastError) {
-            console.error("Storage error:", chrome.runtime.lastError);
-            return;
-          }
-          setScreenshots(data.screenshots || []);
-          setInfo(data.info || []);
-        });
-      } catch (storageError) {
-        console.error("Storage fallback failed:", storageError);
-      }
-    } finally {
-      setLoading(false);
-      loadingRef.current = false;
+  // Chrome message handler
+  const handleChromeMessage = useCallback((message: ChromeMessage) => {
+    switch (message.action) {
+      case "capture_start":
+        setNewScreenshotLoading(true);
+        console.log("Capture started");
+        break;
+      case "capture_finish":
+        setTimeout(() => {
+          setNewScreenshotLoading(false);
+          console.log("Capture completed");
+        }, 2000);
+        break;
+      case "data_updated":
+        console.log(
+          `New data: ${message.newItemsCount} items, ${message.totalItems} total`
+        );
+        loadData(true);
+        break;
     }
   }, []);
+
+  // Chrome runtime API wrapper with error handling
+  const sendChromeMessage = useCallback(
+    async (message: any): Promise<ChromeMessage> => {
+      try {
+        if (!chrome?.runtime?.sendMessage) {
+          throw new Error("Chrome runtime not available");
+        }
+        const response = await chrome.runtime.sendMessage(message);
+        if (!response) {
+          throw new Error("No response from background script");
+        }
+        return response;
+      } catch (error) {
+        console.error("Chrome message error:", error);
+        throw error;
+      }
+    },
+    []
+  );
+
+  // Load data from storage with improved error handling
+  const loadData = useCallback(
+    async (forceRefresh = false) => {
+      if (loadingRef.current && !forceRefresh) return;
+
+      loadingRef.current = true;
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await sendChromeMessage({ action: "get_data" });
+
+        if (response.success) {
+          setScreenshots(response.data?.screenshots || []);
+          setInfo(response.data?.info || []);
+          setIsCaptured(response.isCapturing || false);
+        } else {
+          throw new Error(response.error || "Failed to load data");
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        setError("Failed to load data. Please try again.");
+
+        // Fallback to storage API
+        try {
+          if (chrome?.storage?.local) {
+            chrome.storage.local.get(["screenshots", "info"], (data) => {
+              if (chrome.runtime.lastError) {
+                console.error("Storage error:", chrome.runtime.lastError);
+                return;
+              }
+              setScreenshots(data.screenshots || []);
+              setInfo(data.info || []);
+            });
+          }
+        } catch (storageError) {
+          console.error("Storage fallback failed:", storageError);
+        }
+      } finally {
+        setLoading(false);
+        loadingRef.current = false;
+      }
+    },
+    [sendChromeMessage]
+  );
+
+  // Generic handler for capture actions
+  const handleCaptureAction = useCallback(
+    async (
+      action: string,
+      successCallback?: () => void,
+      errorMessage?: string
+    ) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await sendChromeMessage({ action });
+
+        if (response.success) {
+          successCallback?.();
+        } else {
+          throw new Error(response.error || `Failed to ${action}`);
+        }
+      } catch (error) {
+        console.error(`Error ${action}:`, error);
+        setError(errorMessage || `Failed to ${action}. Please try again.`);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [sendChromeMessage]
+  );
 
   // Handle start capture
-  const handleStartCapture = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const handleStartCapture = useCallback(() => {
+    handleCaptureAction(
+      "startCapture",
+      () => setIsCaptured(true),
+      "Failed to start capture. Please try again."
+    );
+  }, [handleCaptureAction]);
 
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "startCapture",
-      });
+  // Handle resume capture
+  const handleResumeCapture = useCallback(() => {
+    handleCaptureAction(
+      "resumeCapture",
+      () => setIsPaused(false),
+      "Failed to resume capture. Please try again."
+    );
+  }, [handleCaptureAction]);
 
-      if (response && response.success) {
-        setIsCaptured(true);
-      } else {
-        throw new Error(response?.error || "Failed to start capture");
-      }
-    } catch (error) {
-      console.error("Error starting capture:", error);
-      setError("Failed to start capture. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Handle pause capture
+  const handlePauseCapture = useCallback(() => {
+    handleCaptureAction(
+      "pauseCapture",
+      () => setIsPaused(true),
+      "Failed to pause capture. Please try again."
+    );
+  }, [handleCaptureAction]);
 
-  const handleResumeCapture = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "resumeCapture",
-      });
-
-      if (response && response.success) {
-        setIsPaused(false);
-      } else {
-        throw new Error(response?.error || "Failed to resume capture");
-      }
-    } catch (error) {
-      console.error("Error resuming capture:", error);
-      setError("Failed to resume capture. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handlePauseCapture = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "pauseCapture",
-      });
-
-      if (response && response.success) {
-        setIsPaused(true);
-      } else {
-        throw new Error(response?.error || "Failed to pause capture");
-      }
-    } catch (error) {
-      console.error("Error pausing capture:", error);
-      setError("Failed to pause capture. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
   // Handle stop capture
-  const handleStopCapture = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "stopCapture",
-      });
-
-      if (response && response.success) {
+  const handleStopCapture = useCallback(() => {
+    handleCaptureAction(
+      "stopCapture",
+      () => {
         setIsCaptured(false);
-        // Refresh data to get any final buffered items
         setTimeout(() => loadData(true), 500);
-      } else {
-        throw new Error(response?.error || "Failed to stop capture");
-      }
-    } catch (error) {
-      console.error("Error stopping capture:", error);
-      setError("Failed to stop capture. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-
-    handleClearData();
-  }, [loadData]);
+        handleClearData();
+      },
+      "Failed to stop capture. Please try again."
+    );
+  }, [handleCaptureAction, loadData]);
 
   // Handle clear data
   const handleClearData = useCallback(async () => {
@@ -201,14 +409,11 @@ const Home = ({ name }: { name: string }) => {
 
     setLoading(true);
     try {
-      const response = await chrome.runtime.sendMessage({
-        action: "clear_data",
-      });
+      const response = await sendChromeMessage({ action: "clear_data" });
 
-      if (response && response.success) {
+      if (response.success) {
         setScreenshots([]);
         setInfo([]);
-        // setBufferSize(0);
       } else {
         throw new Error("Failed to clear data");
       }
@@ -218,56 +423,31 @@ const Home = ({ name }: { name: string }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sendChromeMessage]);
 
-  // Listen for real-time updates from background script
+  // Set up message listeners
   useEffect(() => {
-    const messageListener = (message: any) => {
-      if (message.action === "data_updated") {
-        console.log(
-          `New data: ${message.newItemsCount} items, ${message.totalItems} total`
-        );
-        loadData(true); // Force refresh when new data arrives
-      }
-    };
+    if (!chrome?.runtime?.onMessage) {
+      console.warn("Chrome runtime not available");
+      return;
+    }
 
-    chrome.runtime.onMessage.addListener(messageListener);
+    chrome.runtime.onMessage.addListener(handleChromeMessage);
 
     return () => {
-      chrome.runtime.onMessage.removeListener(messageListener);
+      chrome.runtime.onMessage.removeListener(handleChromeMessage);
     };
-  }, [loadData]);
+  }, [handleChromeMessage]);
 
   // Initial data load
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Auto-refresh data every 10 seconds when capturing
-  // useEffect(() => {
-  //   if (!isCaptured) return;
-
-  //   const interval = setInterval(() => {
-  //     loadData();
-  //   }, 10000);
-
-  //   return () => clearInterval(interval);
-  // }, [isCaptured, loadData]);
-
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
       {/* Error display */}
-      {error && (
-        <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-          {error}
-          <button
-            onClick={() => setError(null)}
-            className="ml-2 text-red-500 hover:text-red-700"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
 
       {!isCaptured ? (
         <div className="flex flex-col items-center justify-center w-full h-100vh">
@@ -292,75 +472,18 @@ const Home = ({ name }: { name: string }) => {
         </div>
       ) : (
         <div className="relative w-full">
-          {/* Status bar */}
-          {/* <div className="w-full mb-4 p-2 bg-blue-50 border border-blue-200 rounded text-center">
-            <p className="text-sm text-blue-700">
-              Stepture is Capturing... ({screenshots.length} steps)
-              {bufferSize > 0 && ` | ${bufferSize} pending`}
-            </p>
-          </div> */}
-
           <div className="mt-6 w-full bg-background p-4 rounded-md overflow-y-scroll no-scrollbar mb-40">
             <div className="screenshots grid gap-4">
               {loading && screenshots.length === 0 ? (
                 <p className="text-center text-gray-500">Loading...</p>
               ) : screenshots.length > 0 ? (
                 screenshots.map((img, index) => (
-                  <div
-                    key={`${index}-${img.substring(0, 20)}`} // Better key
-                    className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
-                  >
-                    <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
-                      <p className="text-xs text-blue">Step {index + 1}</p>
-                    </div>
-                    <div className="text-start p-2 text-base text-slate-800">
-                      {info[index] && (
-                        <div className="space-y-1">
-                          <p>
-                            <span className="font-medium">Click:</span>{" "}
-                            <span className="text-slate-600">
-                              {info[index].textContent && (
-                                <span className="text-slate-800">
-                                  "{info[index].textContent}"
-                                </span>
-                              )}
-                            </span>
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="relative w-full">
-                      <img
-                        src={img}
-                        alt={`Screenshot ${index}`}
-                        className="screenshot-img w-full rounded-md"
-                        loading="lazy"
-                      />
-                      {info[index]?.coordinates && (
-                        <div
-                          className="absolute w-6 h-6 rounded-full border-2 border-red-500 bg-red-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                          style={{
-                            // top: `${
-                            //   (info[index].coordinates.elementRect.top +
-                            //     info[index].coordinates.elementRect.height /
-                            //       2) /
-                            //   5
-                            // }px`,
-                            // left: `${
-                            //   (info[index].coordinates.elementRect.left +
-                            //     info[index].coordinates.elementRect.width / 2) /
-                            //   5
-                            // }px`,
-                            //Alternative approach using click coordinates:
-                            top: `${info[index].coordinates.page.y / 5}px`,
-                            left: `${info[index].coordinates.page.x / 5}px`,
-                          }}
-                        >
-                          <div className="absolute inset-0 animate-ping bg-red-400 rounded-full opacity-75"></div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <ResponsiveScreenshotItem
+                    key={`${index}-${img.substring(0, 20)}`}
+                    img={img}
+                    index={index}
+                    info={info[index]}
+                  />
                 ))
               ) : (
                 <p className="text-center text-gray-500">
@@ -368,20 +491,7 @@ const Home = ({ name }: { name: string }) => {
                   capturing!
                 </p>
               )}
-              {newScreenshotLoading && (
-                // show the loading skeleton
-                <div className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1">
-                  <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
-                    <p className="text-xs text-blue">Loading new step...</p>
-                  </div>
-                  <div className="text-start p-2 text-base text-slate-800">
-                    <p className="text-gray-500">
-                      New step is being captured...
-                    </p>
-                  </div>
-                  <div className="w-full h-48 bg-gray-200 animate-pulse rounded-md"></div>
-                </div>
-              )}
+              {newScreenshotLoading && <LoadingSkeleton />}
             </div>
           </div>
 
@@ -394,7 +504,7 @@ const Home = ({ name }: { name: string }) => {
                 </p>
               </div>
             )}
-            <div className="mt-4 flex justify-between items-center">
+            <div className="mt-4 flex justify-center gap-2 items-center w-full ">
               <Button
                 onClick={handleClearData}
                 color="secondary"
