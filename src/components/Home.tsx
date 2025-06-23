@@ -4,6 +4,16 @@ import { useEffect, useState, useCallback, useRef } from "react";
 
 interface ElementInfo {
   textContent: string;
+  coordinates: {
+    viewport: { x: number; y: number };
+    page: { x: number; y: number };
+    elementRect: {
+      top: number;
+      left: number;
+      width: number;
+      height: number;
+    };
+  };
 
   // for future use
   // tagName: string;
@@ -46,6 +56,8 @@ const Home = ({ name }: { name: string }) => {
       }, 2000); // Simulate delay for UI update
     }
   });
+
+  console.log("Info:", info);
 
   // Load data from storage
   const loadData = useCallback(async (forceRefresh = false) => {
@@ -314,28 +326,40 @@ const Home = ({ name }: { name: string }) => {
                               )}
                             </span>
                           </p>
-                          {/* For future use - url name and timestamp */}
-                          {/* {info[index].url && (
-                            <p className="text-xs text-slate-500 truncate">
-                              {info[index].url}
-                            </p>
-                          )}
-                          {info[index].timestamp && (
-                            <p className="text-xs text-slate-400">
-                              {new Date(
-                                info[index].timestamp!
-                              ).toLocaleTimeString()}
-                            </p>
-                          )} */}
                         </div>
                       )}
                     </div>
-                    <img
-                      src={img}
-                      alt={`Screenshot ${index}`}
-                      className="screenshot-img w-full rounded-md"
-                      loading="lazy" // Optimize image loading
-                    />
+                    <div className="relative w-full">
+                      <img
+                        src={img}
+                        alt={`Screenshot ${index}`}
+                        className="screenshot-img w-full rounded-md"
+                        loading="lazy"
+                      />
+                      {info[index]?.coordinates && (
+                        <div
+                          className="absolute w-6 h-6 rounded-full border-2 border-red-500 bg-red-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                          style={{
+                            // top: `${
+                            //   (info[index].coordinates.elementRect.top +
+                            //     info[index].coordinates.elementRect.height /
+                            //       2) /
+                            //   5
+                            // }px`,
+                            // left: `${
+                            //   (info[index].coordinates.elementRect.left +
+                            //     info[index].coordinates.elementRect.width / 2) /
+                            //   5
+                            // }px`,
+                            //Alternative approach using click coordinates:
+                            top: `${info[index].coordinates.page.y / 5}px`,
+                            left: `${info[index].coordinates.page.x / 5}px`,
+                          }}
+                        >
+                          <div className="absolute inset-0 animate-ping bg-red-400 rounded-full opacity-75"></div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (

@@ -35,6 +35,12 @@ document.addEventListener("click", async (event) => {
 
   const element = event.target;
 
+  // Capture both viewport coordinates and absolute page coordinates
+  const viewportX = event.clientX;
+  const viewportY = event.clientY;
+  const pageX = event.pageX;
+  const pageY = event.pageY;
+
   // Get more detailed element info
   const elementInfo = {
     tagName: element.tagName,
@@ -42,13 +48,25 @@ document.addEventListener("click", async (event) => {
     className: element.className || "None",
     textContent: element.textContent
       ? element.textContent.trim().substring(0, 100)
-      : "None",
+      : "",
     href: element.href || "None",
     type: element.type || "None",
     value: element.value || "None",
     placeholder: element.placeholder || "None",
     timestamp: new Date().toISOString(),
     url: window.location.href,
+    // Coordinates information
+    coordinates: {
+      viewport: { x: viewportX, y: viewportY },
+      page: { x: pageX, y: pageY },
+      // Also include element dimensions for better context
+      elementRect: {
+        top: element.getBoundingClientRect().top,
+        left: element.getBoundingClientRect().left,
+        width: element.getBoundingClientRect().width,
+        height: element.getBoundingClientRect().height,
+      },
+    },
     // xpath: getXPath(element),
   };
 
@@ -69,7 +87,7 @@ document.addEventListener("click", async (event) => {
     if (response && response.success) {
       console.log("Screenshot captured successfully");
       // Optional: Visual feedback - green circle at click position
-      showClickFeedback(element);
+      showClickFeedback(element, pageX, pageY);
     } else {
       console.warn("Screenshot capture failed:", response?.error);
     }
@@ -113,7 +131,7 @@ document.addEventListener("click", async (event) => {
 // }
 
 // Optional: Visual feedback for clicks
-function showClickFeedback(element) {
+function showClickFeedback(element, x, y) {
   const feedback = document.createElement("div");
   feedback.style.cssText = `
     position: absolute;
@@ -139,9 +157,9 @@ function showClickFeedback(element) {
     document.head.appendChild(styles);
   }
 
-  const rect = element.getBoundingClientRect();
-  feedback.style.left = rect.left + rect.width / 2 - 10 + window.scrollX + "px";
-  feedback.style.top = rect.top + rect.height / 2 - 10 + window.scrollY + "px";
+  // Use the exact click coordinates instead of element center
+  feedback.style.left = x - 10 + "px";
+  feedback.style.top = y - 10 + "px";
 
   document.body.appendChild(feedback);
 
