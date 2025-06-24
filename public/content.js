@@ -84,11 +84,11 @@ document.addEventListener("click", async (event) => {
       action: "capture_finish",
     });
 
-    console.log("Screenshot capture response:", response);
-
     if (response && response.success) {
-      console.log("Screenshot captured successfully");
-      console.log(response.data);
+      chrome.runtime.sendMessage({
+        action: "screenshot_captured",
+        message: response.data,
+      });
       showClickFeedback(element, pageX, pageY);
     } else {
       console.warn("Screenshot capture failed:", response?.error);

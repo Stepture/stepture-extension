@@ -2,12 +2,17 @@ import Button from "./Button";
 import { stepture } from "../constants/images";
 import { useEffect, useState, useCallback, useRef } from "react";
 
+interface CaptureData {
+  tab: any; // or specify the type if you use it
+  screenshot: string;
+  info: ElementInfo;
+}
+
 interface ElementInfo {
   textContent: string;
   coordinates: {
     viewport: { x: number; y: number };
   };
-  // Add these fields if not already captured by your background script
   captureContext?: {
     devicePixelRatio: number;
     viewportWidth: number;
@@ -23,11 +28,9 @@ interface ChromeMessage {
   totalItems?: number;
   success?: boolean;
   error?: string;
-  data?: {
-    screenshots: string[];
-    info: ElementInfo[];
-  };
+  data?: CaptureData[]; // Now an array of capture objects
   isCapturing?: boolean;
+  message?: CaptureData;
 }
 
 // Responsive Screenshot Item Component
@@ -323,38 +326,37 @@ const ErrorDisplay = ({
 const Home = ({ name }: { name: string }) => {
   const [isCaptured, setIsCaptured] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [screenshots, setScreenshots] = useState<string[]>([]);
-  const [info, setInfo] = useState<ElementInfo[]>([]);
+  const [captures, setCaptures] = useState<CaptureData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newScreenshotLoading, setNewScreenshotLoading] = useState(false);
 
-  // Ref to prevent multiple simultaneous loads
   const loadingRef = useRef(false);
+  const lastCaptureRef = useRef<HTMLDivElement | null>(null);
 
-  // Chrome message handler
   const handleChromeMessage = useCallback((message: ChromeMessage) => {
     switch (message.action) {
       case "capture_start":
         setNewScreenshotLoading(true);
-        console.log("Capture started");
         break;
       case "capture_finish":
-        setTimeout(() => {
-          setNewScreenshotLoading(false);
-          console.log("Capture completed");
-        }, 2000);
+        setNewScreenshotLoading(false);
         break;
-      case "data_updated":
-        console.log(
-          `New data: ${message.newItemsCount} items, ${message.totalItems} total`
-        );
-        loadData(true);
+      case "screenshot_captured":
+        // When there is a new screenshot captured.
+        // we only add it to the captures state
+        if (message.message) {
+          const newCapture: CaptureData = {
+            tab: message.message?.tab,
+            screenshot: message?.message?.screenshot,
+            info: message.message?.info,
+          };
+          setCaptures((prev) => [...prev, newCapture]);
+        }
         break;
     }
   }, []);
 
-  // Chrome runtime API wrapper with error handling
   const sendChromeMessage = useCallback(
     async (message: any): Promise<ChromeMessage> => {
       try {
@@ -374,7 +376,6 @@ const Home = ({ name }: { name: string }) => {
     []
   );
 
-  // Load data from storage with improved error handling
   const loadData = useCallback(
     async (forceRefresh = false) => {
       if (loadingRef.current && !forceRefresh) return;
@@ -387,31 +388,24 @@ const Home = ({ name }: { name: string }) => {
         const response = await sendChromeMessage({ action: "get_data" });
 
         if (response.success) {
-          setScreenshots(response.data?.screenshots || []);
-          setInfo(response.data?.info || []);
+          setCaptures(response.data || []);
           setIsCaptured(response.isCapturing || false);
         } else {
           throw new Error(response.error || "Failed to load data");
         }
       } catch (error) {
-        console.error("Error loading data:", error);
         setError("Failed to load data. Please try again.");
-
         // Fallback to storage API
         try {
           if (chrome?.storage?.local) {
-            chrome.storage.local.get(["screenshots", "info"], (data) => {
+            chrome.storage.local.get(["captures"], (data) => {
               if (chrome.runtime.lastError) {
-                console.error("Storage error:", chrome.runtime.lastError);
                 return;
               }
-              setScreenshots(data.screenshots || []);
-              setInfo(data.info || []);
+              setCaptures(data.captures || []);
             });
           }
-        } catch (storageError) {
-          console.error("Storage fallback failed:", storageError);
-        }
+        } catch (storageError) {}
       } finally {
         setLoading(false);
         loadingRef.current = false;
@@ -491,19 +485,15 @@ const Home = ({ name }: { name: string }) => {
   // Handle clear data
   const handleClearData = useCallback(async () => {
     if (!confirm("Are you sure you want to clear all captured data?")) return;
-
     setLoading(true);
     try {
       const response = await sendChromeMessage({ action: "clear_data" });
-
       if (response.success) {
-        setScreenshots([]);
-        setInfo([]);
+        setCaptures([]);
       } else {
         throw new Error("Failed to clear data");
       }
     } catch (error) {
-      console.error("Error clearing data:", error);
       setError("Failed to clear data. Please try again.");
     } finally {
       setLoading(false);
@@ -512,13 +502,8 @@ const Home = ({ name }: { name: string }) => {
 
   // Set up message listeners
   useEffect(() => {
-    if (!chrome?.runtime?.onMessage) {
-      console.warn("Chrome runtime not available");
-      return;
-    }
-
+    if (!chrome?.runtime?.onMessage) return;
     chrome.runtime.onMessage.addListener(handleChromeMessage);
-
     return () => {
       chrome.runtime.onMessage.removeListener(handleChromeMessage);
     };
@@ -528,6 +513,16 @@ const Home = ({ name }: { name: string }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (lastCaptureRef.current) {
+      lastCaptureRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      lastCaptureRef.current.scrollTop += 100; // Adjust scroll position to ensure visibility
+    }
+  }, [captures.length]);
 
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
@@ -549,9 +544,9 @@ const Home = ({ name }: { name: string }) => {
           />
 
           {/* Show existing screenshots count */}
-          {screenshots.length > 0 && (
+          {captures.length > 0 && (
             <p className="text-sm text-gray-600 mt-4">
-              {screenshots.length} screenshots saved
+              {captures.length} screenshots saved
             </p>
           )}
         </div>
@@ -559,16 +554,20 @@ const Home = ({ name }: { name: string }) => {
         <div className="relative w-full">
           <div className="mt-6 w-full bg-background p-4 rounded-md overflow-y-scroll no-scrollbar mb-40">
             <div className="screenshots grid gap-4">
-              {loading && screenshots.length === 0 ? (
+              {loading && captures.length === 0 ? (
                 <p className="text-center text-gray-500">Loading...</p>
-              ) : screenshots.length > 0 ? (
-                screenshots.map((img, index) => (
-                  <ResponsiveScreenshotItem
-                    key={`${index}-${img.substring(0, 20)}`}
-                    img={img}
-                    index={index}
-                    info={info[index]}
-                  />
+              ) : captures.length > 0 ? (
+                captures.map((capture, index) => (
+                  <div
+                    key={`${index}-${capture.screenshot.substring(0, 20)}`}
+                    ref={index === captures.length - 1 ? lastCaptureRef : null}
+                  >
+                    <ResponsiveScreenshotItem
+                      img={capture.screenshot}
+                      index={index}
+                      info={capture.info}
+                    />
+                  </div>
                 ))
               ) : (
                 <p className="text-center text-gray-500">
@@ -628,7 +627,7 @@ const Home = ({ name }: { name: string }) => {
         <>
           <hr className="border-gray-300 w-full my-8" />
           <Button color="secondary" text="View your docs" />
-          {screenshots.length > 0 && (
+          {captures.length > 0 && (
             <Button
               onClick={handleClearData}
               color="secondary"

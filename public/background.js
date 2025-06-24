@@ -185,6 +185,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
+          // here we can use the dataUrl to save to the google drive storage
+          // and then get the URL to save in the local storage
+
           // Add to buffer
           captureBuffer.push(dataUrl);
           infoBuffer.push(message.data);
@@ -198,7 +201,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           const data = {
             tab: null,
-            screenshot: dataUrl,
+            screenshot: dataUrl, // This will be the public URL of the screenshot
             info: message.data,
           };
           sendResponse({ success: true, data: data });
@@ -208,10 +211,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // frontend requests data
     case "get_data":
-      chrome.storage.local.get({ screenshots: [], info: [] }, (data) => {
+      chrome.storage.local.get({ captures: [] }, (data) => {
         sendResponse({
           success: true,
-          data: data,
+          data: data.captures,
           isCapturing: isCapturing,
           bufferSize: captureBuffer.length,
         });
@@ -219,7 +222,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case "clear_data":
-      chrome.storage.local.clear(() => {
+      chrome.storage.local.set({ captures: [] }, () => {
         captureBuffer = [];
         infoBuffer = [];
         sendResponse({ success: true });
@@ -235,10 +238,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "capture_start":
-      break;
+      break; // This is handled in the frontend, no action needed here
 
     case "capture_finish":
-      break;
+      break; // This is handled in the frontend, no action needed here
+
+    case "screenshot_captured":
+      break; // This is handled in the frontend, no action needed here
 
     default:
       console.warn("Unknown action received: ", message.action);
@@ -251,43 +257,26 @@ async function saveBatch() {
   if (captureBuffer.length === 0) return;
 
   try {
-    const data = await chrome.storage.local.get({ screenshots: [], info: [] });
+    const data = await chrome.storage.local.get({ captures: [] });
+
+    // Build new batch as array of objects
+    const newCaptures = captureBuffer.map((screenshot, i) => ({
+      tab: null,
+      screenshot,
+      info: infoBuffer[i],
+    }));
 
     // Limit total items to prevent memory issues
-    const totalItems = data.screenshots.length + captureBuffer.length;
-    let screenshots = data.screenshots;
-    let info = data.info;
-
-    if (totalItems > MAX_STORAGE_ITEMS) {
-      const itemsToRemove = totalItems - MAX_STORAGE_ITEMS;
-      screenshots = screenshots.slice(itemsToRemove);
-      info = info.slice(itemsToRemove);
+    let captures = [...data.captures, ...newCaptures];
+    if (captures.length > MAX_STORAGE_ITEMS) {
+      captures = captures.slice(captures.length - MAX_STORAGE_ITEMS);
     }
 
-    const updatedScreenshots = [...screenshots, ...captureBuffer];
-    const updatedInfo = [...info, ...infoBuffer];
-
-    await chrome.storage.local.set({
-      screenshots: updatedScreenshots,
-      info: updatedInfo,
-    });
-
-    // Notify frontend about new data
-    try {
-      await chrome.runtime.sendMessage({
-        action: "data_updated",
-        newItemsCount: captureBuffer.length,
-        totalItems: updatedScreenshots.length,
-      });
-    } catch (e) {
-      // Ignore if frontend is not listening
-    }
+    await chrome.storage.local.set({ captures });
 
     console.log(
-      `Batch saved: ${captureBuffer.length} new items, ${updatedScreenshots.length} total`
+      `Batch saved: ${newCaptures.length} new items, ${captures.length} total`
     );
-
-    // Clear buffers
     captureBuffer = [];
     infoBuffer = [];
   } catch (error) {
