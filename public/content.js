@@ -1,4 +1,3 @@
-// Optimized content.js
 console.log("Content script is running...");
 
 let isCapturing = false;
@@ -9,7 +8,6 @@ const CLICK_DEBOUNCE = 500; // Prevent rapid clicks
 chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
   if (response && response.isCapturing) {
     isCapturing = true;
-    console.log("Capture is already active");
   }
 });
 
@@ -17,7 +15,6 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
     isCapturing = message.isCapturing;
-    console.log(`Capture status changed: ${isCapturing}`);
   }
 });
 
@@ -36,6 +33,8 @@ document.addEventListener("click", async (event) => {
   const element = event.target;
 
   // Capture both viewport coordinates and absolute page coordinates
+  // View port coordinates are relative to the visible part of the page
+  // Page coordinates are relative to the entire document
   const viewportX = event.clientX;
   const viewportY = event.clientY;
   const pageX = event.pageX;
@@ -69,22 +68,27 @@ document.addEventListener("click", async (event) => {
   };
 
   try {
+    // to frontend for skeleton loading
     await chrome.runtime.sendMessage({
       action: "capture_start",
     });
 
+    // to background script to capture screenshot
     const response = await chrome.runtime.sendMessage({
       action: "capture_screenshot",
       data: elementInfo,
     });
 
+    // to frontend for skeleton loading
     await chrome.runtime.sendMessage({
       action: "capture_finish",
     });
 
+    console.log("Screenshot capture response:", response);
+
     if (response && response.success) {
       console.log("Screenshot captured successfully");
-      // Optional: Visual feedback - green circle at click position
+      console.log(response.data);
       showClickFeedback(element, pageX, pageY);
     } else {
       console.warn("Screenshot capture failed:", response?.error);
@@ -94,41 +98,7 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-// Helper function to get XPath of element
-// function getXPath(element) {
-//   if (!element) return "";
-
-//   if (element.id) {
-//     return `//*[@id="${element.id}"]`;
-//   }
-
-//   if (element === document.body) {
-//     return "/html/body";
-//   }
-
-//   let path = "";
-//   let current = element;
-
-//   while (current && current !== document.body) {
-//     const tagName = current.tagName.toLowerCase();
-//     const siblings = Array.from(current.parentNode?.children || []).filter(
-//       (sibling) => sibling.tagName === current.tagName
-//     );
-
-//     if (siblings.length > 1) {
-//       const index = siblings.indexOf(current) + 1;
-//       path = `/${tagName}[${index}]${path}`;
-//     } else {
-//       path = `/${tagName}${path}`;
-//     }
-
-//     current = current.parentNode;
-//   }
-
-//   return `/html/body${path}`;
-// }
-
-// Optional: Visual feedback for clicks
+// Visual feedback for clicks
 function showClickFeedback(element, x, y) {
   const feedback = document.createElement("div");
   feedback.style.cssText = `
@@ -139,26 +109,21 @@ function showClickFeedback(element, x, y) {
     border-radius: 50%;
     pointer-events: none;
     z-index: 10000;
-    animation: clickFeedback 0.6s ease-out forwards;
+    opacity: 1;
+    left: ${x - 10}px;
+    top: ${y - 10}px;
+    transform: scale(0.5);
+    transition: transform 0.6s ease-out, opacity 0.6s ease-out;
   `;
 
-  // Add animation keyframes if not already added
-  if (!document.getElementById("click-feedback-styles")) {
-    const styles = document.createElement("style");
-    styles.id = "click-feedback-styles";
-    styles.textContent = `
-      @keyframes clickFeedback {
-        0% { transform: scale(0.5); opacity: 1; }
-        100% { transform: scale(2); opacity: 0; }
-      }
-    `;
-    document.head.appendChild(styles);
-  }
-
-  feedback.style.left = x - 10 + "px";
-  feedback.style.top = y - 10 + "px";
-
   document.body.appendChild(feedback);
+
+  // Force a reflow to ensure the initial state is applied
+  feedback.offsetWidth;
+
+  // Apply the end state using transition instead of animation
+  feedback.style.transform = "scale(2)";
+  feedback.style.opacity = "0";
 
   setTimeout(() => {
     if (feedback.parentNode) {

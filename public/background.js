@@ -17,6 +17,15 @@ chrome.sidePanel
 // Purpose : The Scripting API allows extensions to inject scripts into web pages
 // Permission : "scripting" permission
 const injectContentScript = async (tabId, tabUrl) => {
+  // if already injected, skip injection
+  const [existingTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (existingTab && existingTab.id === tabId) {
+    console.log(`Content script already injected into tab ${tabId}`);
+    return;
+  }
   if (
     !tabId ||
     !tabUrl ||
@@ -98,8 +107,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case "startCapture":
       isCapturing = true;
-
-      // inject content script current active tab
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs.length > 0) {
           const activeTab = tabs[0];
@@ -108,41 +115,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.warn("No active tab found to inject content script.");
         }
       });
+
+      chrome.runtime.sendMessage({
+        action: "capture_status_changed",
+        isCapturing: true,
+      });
+
       sendResponse({ success: true, isCapturing: true });
       break;
 
     case "stopCapture":
       isCapturing = false;
+
+      chrome.runtime.sendMessage({
+        action: "capture_status_changed",
+        isCapturing: false,
+      });
+
       if (captureBuffer.length > 0) {
         saveBatch();
       }
       sendResponse({ success: true, isCapturing: false });
       break;
+
     case "pauseCapture":
       isCapturing = false;
+
+      // Notify content script about capture status change
+      chrome.runtime.sendMessage({
+        action: "capture_status_changed",
+        isCapturing: false,
+      });
       // Save any remaining items
       if (captureBuffer.length > 0) {
         saveBatch();
       }
       sendResponse({ success: true, isCapturing: false });
       break;
+
     case "resumeCapture":
       isCapturing = true;
-      // Notify frontend about capture status change
+      // Notify content script about capture status change
       chrome.runtime.sendMessage({
-        action: "capture_status_changed", // Notify frontend
+        action: "capture_status_changed",
         isCapturing: true,
       });
+      sendResponse({ success: true, isCapturing: true });
+      break;
+
     case "capture_screenshot":
       if (!isCapturing) {
         sendResponse({ success: false, error: "Not capturing" });
         return;
       }
-
-      // chrome.runtime.sendMessage({
-      //   action: "capture_start",
-      //   data: message.data,
-      // });
 
       // API : chrome.tabs.captureVisibleTab
       // Purpose : Capture a screenshot of the visible area of the currently active tab
@@ -171,25 +196,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             scheduleBatchSave();
           }
 
-          // chrome.runtime
-          //   .sendMessage({
-          //     action: "capture_finish",
-          //     data: {
-          //       success: true,
-          //       screenshot: dataUrl,
-          //       elementInfo: message.data,
-          //       buffered: captureBuffer.length,
-          //     },
-          //   })
-          //   .catch(() => {
-          //     // Ignore if frontend is not listening
-          //   });
-
-          sendResponse({ success: true, buffered: captureBuffer.length });
+          const data = {
+            tab: null,
+            screenshot: dataUrl,
+            info: message.data,
+          };
+          sendResponse({ success: true, data: data });
         }
       );
       return true; // Keep message channel open
 
+    // frontend requests data
     case "get_data":
       chrome.storage.local.get({ screenshots: [], info: [] }, (data) => {
         sendResponse({
@@ -209,6 +226,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return true;
 
+    // content script checks the status on load
     case "get_status":
       sendResponse({
         isCapturing: isCapturing,

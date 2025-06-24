@@ -6,13 +6,6 @@ interface ElementInfo {
   textContent: string;
   coordinates: {
     viewport: { x: number; y: number };
-    page: { x: number; y: number };
-    elementRect: {
-      top: number;
-      left: number;
-      width: number;
-      height: number;
-    };
   };
   // Add these fields if not already captured by your background script
   captureContext?: {
