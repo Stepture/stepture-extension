@@ -6,6 +6,21 @@ interface ElementInfo {
   textContent: string;
   coordinates: {
     viewport: { x: number; y: number };
+    page: { x: number; y: number };
+    elementRect: {
+      top: number;
+      left: number;
+      width: number;
+      height: number;
+    };
+  };
+  // Add these fields if not already captured by your background script
+  captureContext?: {
+    devicePixelRatio: number;
+    viewportWidth: number;
+    viewportHeight: number;
+    screenWidth: number;
+    screenHeight: number;
   };
 }
 
@@ -52,6 +67,7 @@ const ResponsiveScreenshotItem = ({
   }, []);
 
   // Calculate responsive position based on current container width
+  // Updated getResponsivePosition function with proper coordinate handling
   const getResponsivePosition = useCallback(() => {
     if (
       !info?.coordinates ||
@@ -61,28 +77,104 @@ const ResponsiveScreenshotItem = ({
       return { left: "50%", top: "50%" };
     }
 
-    // Calculate the displayed image dimensions
-    const containerPadding = 16; // Account for container padding
-    const availableWidth = containerWidth - containerPadding;
-    const imageAspectRatio = imageDimensions.height / imageDimensions.width;
-    const displayedImageWidth = availableWidth;
-    const displayedImageHeight = displayedImageWidth * imageAspectRatio;
+    // Get the capture context if available
+    const captureContext = info.captureContext;
 
-    const scaleX = displayedImageWidth / imageDimensions.width;
-    const scaleY = displayedImageHeight / imageDimensions.height;
+    // Method 1: Use capture context for accurate positioning
+    if (captureContext) {
+      const {
+        devicePixelRatio = 1,
+        viewportWidth,
+        viewportHeight,
+      } = captureContext;
 
-    const clickX = info.coordinates.viewport.x * scaleX;
-    const clickY = info.coordinates.viewport.y * scaleY;
+      // Screenshots are typically captured at actual device pixels
+      // So we need to account for device pixel ratio
+      const actualScreenshotWidth = imageDimensions.width;
+      const actualScreenshotHeight = imageDimensions.height;
 
-    const xPercent = (clickX / displayedImageWidth) * 100;
-    const yPercent = (clickY / displayedImageHeight) * 100;
+      // The viewport coordinates from the content script are in CSS pixels
+      // Convert to percentage of the actual screenshot
+      let xPercent, yPercent;
+
+      if (viewportWidth && viewportHeight) {
+        // Method A: Use viewport dimensions from capture context
+        // Account for device pixel ratio scaling
+        // const scaledViewportWidth = viewportWidth * devicePixelRatio;
+        // const scaledViewportHeight = viewportHeight * devicePixelRatio;
+
+        // Calculate position as percentage
+        xPercent =
+          ((info.coordinates.viewport.x * devicePixelRatio) /
+            actualScreenshotWidth) *
+          100;
+        yPercent =
+          ((info.coordinates.viewport.y * devicePixelRatio) /
+            actualScreenshotHeight) *
+          100;
+      } else {
+        // Method B: Fallback - assume screenshot dimensions match viewport
+        xPercent =
+          ((info.coordinates.viewport.x * devicePixelRatio) /
+            actualScreenshotWidth) *
+          100;
+        yPercent =
+          ((info.coordinates.viewport.y * devicePixelRatio) /
+            actualScreenshotHeight) *
+          100;
+      }
+
+      // Debug logging for the first item only
+      if (index === 0) {
+        console.log("Enhanced Position Calculation:", {
+          originalCoords: info.coordinates.viewport,
+          devicePixelRatio,
+          captureViewport: { width: viewportWidth, height: viewportHeight },
+          screenshotDimensions: {
+            width: actualScreenshotWidth,
+            height: actualScreenshotHeight,
+          },
+          calculatedPercent: { x: xPercent, y: yPercent },
+          scaledCoords: {
+            x: info.coordinates.viewport.x * devicePixelRatio,
+            y: info.coordinates.viewport.y * devicePixelRatio,
+          },
+        });
+      }
+
+      return {
+        left: `${Math.min(Math.max(xPercent, 0), 100)}%`,
+        top: `${Math.min(Math.max(yPercent, 0), 100)}%`,
+      };
+    }
+
+    // Method 2: Fallback - Direct percentage calculation (original method)
+    // This assumes the screenshot dimensions directly correspond to viewport
+    const originalScreenshotWidth = imageDimensions.width;
+    const originalScreenshotHeight = imageDimensions.height;
+
+    const xPercent =
+      (info.coordinates.viewport.x / originalScreenshotWidth) * 100;
+    const yPercent =
+      (info.coordinates.viewport.y / originalScreenshotHeight) * 100;
+
+    // Debug logging
+    if (index === 0) {
+      console.log("Fallback Position Calculation:", {
+        originalImageSize: {
+          width: originalScreenshotWidth,
+          height: originalScreenshotHeight,
+        },
+        viewportCoords: info.coordinates.viewport,
+        calculatedPercent: { x: xPercent, y: yPercent },
+      });
+    }
 
     return {
       left: `${Math.min(Math.max(xPercent, 0), 100)}%`,
       top: `${Math.min(Math.max(yPercent, 0), 100)}%`,
     };
-  }, [info, imageDimensions, containerWidth]);
-
+  }, [info, imageDimensions, containerWidth, index]);
   // Get responsive indicator size
   const getIndicatorSize = useCallback(() => {
     if (containerWidth === 0) return 32;
@@ -504,7 +596,7 @@ const Home = ({ name }: { name: string }) => {
                 </p>
               </div>
             )}
-            <div className="mt-4 flex justify-center gap-2 items-center w-full ">
+            <div className="mt-4 flex justify-between items-center w-full">
               <Button
                 onClick={handleClearData}
                 color="secondary"

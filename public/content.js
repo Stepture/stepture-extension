@@ -59,6 +59,13 @@ document.addEventListener("click", async (event) => {
     coordinates: {
       viewport: { x: viewportX, y: viewportY },
     },
+    captureContext: {
+      devicePixelRatio: window.devicePixelRatio,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+    },
   };
 
   try {
