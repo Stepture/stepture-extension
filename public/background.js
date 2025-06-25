@@ -17,6 +17,15 @@ chrome.sidePanel
 // Purpose : The Scripting API allows extensions to inject scripts into web pages
 // Permission : "scripting" permission
 const injectContentScript = async (tabId, tabUrl) => {
+  // if already injected, skip injection
+  const [existingTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (existingTab && existingTab.id === tabId) {
+    console.log(`Content script already injected into tab ${tabId}`);
+    return;
+  }
   if (
     !tabId ||
     !tabUrl ||
@@ -98,8 +107,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case "startCapture":
       isCapturing = true;
-
-      // inject content script current active tab
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs.length > 0) {
           const activeTab = tabs[0];
@@ -108,41 +115,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.warn("No active tab found to inject content script.");
         }
       });
+
+      chrome.runtime.sendMessage({
+        action: "capture_status_changed",
+        isCapturing: true,
+      });
+
       sendResponse({ success: true, isCapturing: true });
       break;
 
     case "stopCapture":
       isCapturing = false;
+
+      chrome.runtime.sendMessage({
+        action: "capture_status_changed",
+        isCapturing: false,
+      });
+
       if (captureBuffer.length > 0) {
         saveBatch();
       }
       sendResponse({ success: true, isCapturing: false });
       break;
+
     case "pauseCapture":
       isCapturing = false;
+
+      // Notify content script about capture status change
+      chrome.runtime.sendMessage({
+        action: "capture_status_changed",
+        isCapturing: false,
+      });
       // Save any remaining items
       if (captureBuffer.length > 0) {
         saveBatch();
       }
       sendResponse({ success: true, isCapturing: false });
       break;
+
     case "resumeCapture":
       isCapturing = true;
-      // Notify frontend about capture status change
+      // Notify content script about capture status change
       chrome.runtime.sendMessage({
-        action: "capture_status_changed", // Notify frontend
+        action: "capture_status_changed",
         isCapturing: true,
       });
+      sendResponse({ success: true, isCapturing: true });
+      break;
+
     case "capture_screenshot":
       if (!isCapturing) {
         sendResponse({ success: false, error: "Not capturing" });
         return;
       }
-
-      // chrome.runtime.sendMessage({
-      //   action: "capture_start",
-      //   data: message.data,
-      // });
 
       // API : chrome.tabs.captureVisibleTab
       // Purpose : Capture a screenshot of the visible area of the currently active tab
@@ -160,6 +185,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
+          // here we can use the dataUrl to save to the google drive storage
+          // and then get the URL to save in the local storage
+
           // Add to buffer
           captureBuffer.push(dataUrl);
           infoBuffer.push(message.data);
@@ -171,30 +199,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             scheduleBatchSave();
           }
 
-          // chrome.runtime
-          //   .sendMessage({
-          //     action: "capture_finish",
-          //     data: {
-          //       success: true,
-          //       screenshot: dataUrl,
-          //       elementInfo: message.data,
-          //       buffered: captureBuffer.length,
-          //     },
-          //   })
-          //   .catch(() => {
-          //     // Ignore if frontend is not listening
-          //   });
-
-          sendResponse({ success: true, buffered: captureBuffer.length });
+          const data = {
+            tab: null,
+            screenshot: dataUrl, // This will be the public URL of the screenshot
+            info: message.data,
+          };
+          sendResponse({ success: true, data: data });
         }
       );
       return true; // Keep message channel open
 
+    // frontend requests data
     case "get_data":
-      chrome.storage.local.get({ screenshots: [], info: [] }, (data) => {
+      chrome.storage.local.get({ captures: [] }, (data) => {
         sendResponse({
           success: true,
-          data: data,
+          data: data.captures,
           isCapturing: isCapturing,
           bufferSize: captureBuffer.length,
         });
@@ -202,13 +222,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case "clear_data":
-      chrome.storage.local.clear(() => {
+      chrome.storage.local.set({ captures: [] }, () => {
         captureBuffer = [];
         infoBuffer = [];
         sendResponse({ success: true });
       });
       return true;
 
+    // content script checks the status on load
     case "get_status":
       sendResponse({
         isCapturing: isCapturing,
@@ -217,10 +238,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "capture_start":
-      break;
+      break; // This is handled in the frontend, no action needed here
 
     case "capture_finish":
-      break;
+      break; // This is handled in the frontend, no action needed here
+
+    case "screenshot_captured":
+      break; // This is handled in the frontend, no action needed here
 
     default:
       console.warn("Unknown action received: ", message.action);
@@ -233,43 +257,26 @@ async function saveBatch() {
   if (captureBuffer.length === 0) return;
 
   try {
-    const data = await chrome.storage.local.get({ screenshots: [], info: [] });
+    const data = await chrome.storage.local.get({ captures: [] });
+
+    // Build new batch as array of objects
+    const newCaptures = captureBuffer.map((screenshot, i) => ({
+      tab: null,
+      screenshot,
+      info: infoBuffer[i],
+    }));
 
     // Limit total items to prevent memory issues
-    const totalItems = data.screenshots.length + captureBuffer.length;
-    let screenshots = data.screenshots;
-    let info = data.info;
-
-    if (totalItems > MAX_STORAGE_ITEMS) {
-      const itemsToRemove = totalItems - MAX_STORAGE_ITEMS;
-      screenshots = screenshots.slice(itemsToRemove);
-      info = info.slice(itemsToRemove);
+    let captures = [...data.captures, ...newCaptures];
+    if (captures.length > MAX_STORAGE_ITEMS) {
+      captures = captures.slice(captures.length - MAX_STORAGE_ITEMS);
     }
 
-    const updatedScreenshots = [...screenshots, ...captureBuffer];
-    const updatedInfo = [...info, ...infoBuffer];
-
-    await chrome.storage.local.set({
-      screenshots: updatedScreenshots,
-      info: updatedInfo,
-    });
-
-    // Notify frontend about new data
-    try {
-      await chrome.runtime.sendMessage({
-        action: "data_updated",
-        newItemsCount: captureBuffer.length,
-        totalItems: updatedScreenshots.length,
-      });
-    } catch (e) {
-      // Ignore if frontend is not listening
-    }
+    await chrome.storage.local.set({ captures });
 
     console.log(
-      `Batch saved: ${captureBuffer.length} new items, ${updatedScreenshots.length} total`
+      `Batch saved: ${newCaptures.length} new items, ${captures.length} total`
     );
-
-    // Clear buffers
     captureBuffer = [];
     infoBuffer = [];
   } catch (error) {
