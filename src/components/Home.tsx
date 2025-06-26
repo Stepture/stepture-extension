@@ -232,7 +232,7 @@ const ResponsiveScreenshotItem = ({
 
     return () => observer.disconnect();
   }, []);
-
+  console.log(img);
   return (
     <div
       ref={containerRef}
@@ -260,7 +260,7 @@ const ResponsiveScreenshotItem = ({
       <div className="relative w-full">
         <img
           ref={imgRef}
-          src={img}
+          src="https://drive.google.com/file/d/1-iqFSDMCz-NcGE4qvlARu_jeAK_Pm-S9/view?usp=sharing"
           alt={`Screenshot ${index + 1}`}
           className="screenshot-img w-full rounded-md block"
           loading="lazy"
@@ -333,6 +333,7 @@ const Home = ({ name }: { name: string }) => {
 
   const loadingRef = useRef(false);
   const lastCaptureRef = useRef<HTMLDivElement | null>(null);
+  console.log(captures);
 
   const handleChromeMessage = useCallback((message: ChromeMessage) => {
     switch (message.action) {
@@ -345,6 +346,8 @@ const Home = ({ name }: { name: string }) => {
       case "screenshot_captured":
         // When there is a new screenshot captured.
         // we only add it to the captures state
+
+        console.log("New screenshot captured:", message.message);
         if (message.message) {
           const newCapture: CaptureData = {
             tab: message.message?.tab,
