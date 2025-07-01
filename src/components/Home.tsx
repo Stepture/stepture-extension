@@ -260,7 +260,7 @@ const ResponsiveScreenshotItem = ({
       <div className="relative w-full">
         <img
           ref={imgRef}
-          src="https://drive.google.com/file/d/1-iqFSDMCz-NcGE4qvlARu_jeAK_Pm-S9/view?usp=sharing"
+          src={img}
           alt={`Screenshot ${index + 1}`}
           className="screenshot-img w-full rounded-md block"
           loading="lazy"
