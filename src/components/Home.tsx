@@ -353,17 +353,13 @@ const Home = ({ name }: { name: string }) => {
             info: message.message?.info,
             imgId: message.message?.imgId,
           };
-          console.log("New screenshot captured:", newCapture);
-          console.log(captures);
+          // console.log("New screenshot captured:", newCapture);
+          // console.log(captures);
           setCaptures((prev) => [...prev, newCapture]);
         }
         break;
     }
   }, []);
-
-  useEffect(() => {
-    console.log("captures updated:", captures);
-  }, [captures]);
 
   const sendChromeMessage = useCallback(
     async (message: any): Promise<ChromeMessage> => {
@@ -485,16 +481,17 @@ const Home = ({ name }: { name: string }) => {
         setIsCaptured(false);
         try {
           const steps = captures.map((capture, idx) => ({
-            stepDescription:
-              `Click: ` + capture.info.textContent || `Step ${idx + 1}`,
+            stepDescription: capture.info.textContent
+              ? `Click: ${capture.info.textContent}`
+              : `Step ${idx + 1}`,
             type: "STEP",
             stepNumber: idx + 1,
             screenshot: capture.screenshot
               ? {
                   googleImageId: capture.imgId,
                   url: capture.screenshot,
-                  viewportX: capture.info.captureContext?.screenWidth || 0,
-                  viewportY: capture.info.captureContext?.screenHeight || 0,
+                  viewportX: capture.info.coordinates.viewport.x || 0,
+                  viewportY: capture.info.coordinates.viewport.y || 0,
                   viewportWidth:
                     capture.info.captureContext?.viewportWidth || 0,
                   viewportHeight:
@@ -548,7 +545,6 @@ const Home = ({ name }: { name: string }) => {
 
   // Set up message listeners
   useEffect(() => {
-    console.log(captures);
     if (!chrome?.runtime?.onMessage) return;
     chrome.runtime.onMessage.addListener(handleChromeMessage);
     return () => {

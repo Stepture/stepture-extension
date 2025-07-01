@@ -37,8 +37,8 @@ document.addEventListener("click", async (event) => {
   // Page coordinates are relative to the entire document
   const viewportX = event.clientX;
   const viewportY = event.clientY;
-  const viewportWidth = event.viewportWidth;
-  const viewportHeight = event.viewportHeight;
+  const pageX = event.pageX;
+  const pageY = event.pageY;
 
   // Get more detailed element info
   const elementInfo = {
@@ -89,7 +89,7 @@ document.addEventListener("click", async (event) => {
         action: "screenshot_captured",
         message: response.data,
       });
-      showClickFeedback(element, viewportWidth, viewportHeight);
+      showClickFeedback(element, pageX, pageY);
     } else {
       console.warn("Screenshot capture failed:", response?.error);
     }

@@ -210,8 +210,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               uploadedScreenshotUrl,
               uploadedScreenshotId
             );
-            captureBuffer.push(uploadedScreenshotUrl);
-            captureBuffer.push(uploadedScreenshotId);
+            captureBuffer.push({
+              url: uploadedScreenshotUrl,
+              id: uploadedScreenshotId,
+            });
             infoBuffer.push(message.data);
 
             if (captureBuffer.length >= BATCH_SIZE) {

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-type CreateDoucment = {
+type CreateDocument = {
   title: string;
   description: string;
   steps: Array<{
@@ -109,7 +109,7 @@ export const api = {
         throw error;
       }
     },
-    createDocument: async (data: CreateDoucment) => {
+    createDocument: async (data: CreateDocument) => {
       const response = await privateApi.post("/documents", data);
       return response.data;
     },
