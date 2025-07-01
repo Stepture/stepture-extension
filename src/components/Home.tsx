@@ -1,10 +1,12 @@
 import Button from "./Button";
 import { stepture } from "../constants/images";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { api } from "../libs/axios";
 
 interface CaptureData {
   tab: any; // or specify the type if you use it
   screenshot: string;
+  imgId: string; // Added imgId to store the screenshot ID
   info: ElementInfo;
 }
 
@@ -349,12 +351,19 @@ const Home = ({ name }: { name: string }) => {
             tab: message.message?.tab,
             screenshot: message?.message?.screenshot,
             info: message.message?.info,
+            imgId: message.message?.imgId,
           };
+          console.log("New screenshot captured:", newCapture);
+          console.log(captures);
           setCaptures((prev) => [...prev, newCapture]);
         }
         break;
     }
   }, []);
+
+  useEffect(() => {
+    console.log("captures updated:", captures);
+  }, [captures]);
 
   const sendChromeMessage = useCallback(
     async (message: any): Promise<ChromeMessage> => {
@@ -472,18 +481,56 @@ const Home = ({ name }: { name: string }) => {
   const handleStopCapture = useCallback(() => {
     handleCaptureAction(
       "stopCapture",
-      () => {
+      async () => {
         setIsCaptured(false);
-        setTimeout(() => loadData(true), 500);
-        handleClearData();
+        try {
+          const steps = captures.map((capture, idx) => ({
+            stepDescription:
+              `Click: ` + capture.info.textContent || `Step ${idx + 1}`,
+            type: "STEP",
+            stepNumber: idx + 1,
+            screenshot: capture.screenshot
+              ? {
+                  googleImageId: capture.imgId,
+                  url: capture.screenshot,
+                  viewportX: capture.info.captureContext?.screenWidth || 0,
+                  viewportY: capture.info.captureContext?.screenHeight || 0,
+                  viewportWidth:
+                    capture.info.captureContext?.viewportWidth || 0,
+                  viewportHeight:
+                    capture.info.captureContext?.viewportHeight || 0,
+                  devicePixelRatio:
+                    capture.info.captureContext?.devicePixelRatio || 1,
+                }
+              : undefined,
+          }));
+          const data = await api.protected.createDocument({
+            title: "My Document",
+            description: "Created from Stepture Extension",
+            steps,
+          });
+          if (data && data.id) {
+            console.log("Document created successfully:", data);
+            setTimeout(() => loadData(true), 500);
+            handleClearData();
+            window.open(
+              `${import.meta.env.VITE_FRONTEND_URL}/document/${data.id}`,
+              "_blank"
+            );
+          } else {
+            setError("Failed to create document. Please try again.");
+          }
+        } catch (err) {
+          console.error("Failed to create document:", err);
+        }
       },
       "Failed to stop capture. Please try again."
     );
-  }, [handleCaptureAction, loadData]);
+  }, [handleCaptureAction, loadData, captures]);
 
   // Handle clear data
   const handleClearData = useCallback(async () => {
-    if (!confirm("Are you sure you want to clear all captured data?")) return;
+    //  if (!confirm("Are you sure you want to clear all captured data?")) return;
     setLoading(true);
     try {
       const response = await sendChromeMessage({ action: "clear_data" });
@@ -501,6 +548,7 @@ const Home = ({ name }: { name: string }) => {
 
   // Set up message listeners
   useEffect(() => {
+    console.log(captures);
     if (!chrome?.runtime?.onMessage) return;
     chrome.runtime.onMessage.addListener(handleChromeMessage);
     return () => {

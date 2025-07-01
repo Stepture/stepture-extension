@@ -204,9 +204,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // Parse the JSON response
             const result = await response.json();
             const uploadedScreenshotUrl = result?.publicUrl;
-
-            // added the uploaded screenshot URL to the buffer
+            const uploadedScreenshotId = result?.imgId;
+            console.log(
+              "Screenshot uploaded successfully:",
+              uploadedScreenshotUrl,
+              uploadedScreenshotId
+            );
             captureBuffer.push(uploadedScreenshotUrl);
+            captureBuffer.push(uploadedScreenshotId);
             infoBuffer.push(message.data);
 
             if (captureBuffer.length >= BATCH_SIZE) {
@@ -218,7 +223,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // This will be sent to the side panel - frontend
             const data = {
               tab: null,
-              screenshot: uploadedScreenshotUrl, // This will be the public URL of the screenshot
+              screenshot: uploadedScreenshotUrl,
+              imgId: uploadedScreenshotId,
               info: message.data,
             };
 
