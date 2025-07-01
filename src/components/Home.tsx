@@ -232,7 +232,6 @@ const ResponsiveScreenshotItem = ({
 
     return () => observer.disconnect();
   }, []);
-
   return (
     <div
       ref={containerRef}

@@ -185,26 +185,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
-          // here we can use the dataUrl to save to the google drive storage
-          // and then get the URL to save in the local storage
+          // upload the screenshot to Google Drive
+          const formData = new FormData();
 
-          // Add to buffer
-          captureBuffer.push(dataUrl);
-          infoBuffer.push(message.data);
+          // Convert data URL to Blob
+          const blob = await dataURLtoBlob(dataUrl);
+          formData.append("file", blob, "screenshot.png");
+          const response = await fetch(
+            "http://localhost:8000/google-drive/upload-image",
+            {
+              method: "POST",
+              body: formData,
+              credentials: "include",
+            }
+          );
 
-          // Save immediately if buffer is full, otherwise schedule
-          if (captureBuffer.length >= BATCH_SIZE) {
-            await saveBatch();
+          if (response.ok) {
+            // Parse the JSON response
+            const result = await response.json();
+            const uploadedScreenshotUrl = result?.publicUrl;
+
+            // added the uploaded screenshot URL to the buffer
+            captureBuffer.push(uploadedScreenshotUrl);
+            infoBuffer.push(message.data);
+
+            if (captureBuffer.length >= BATCH_SIZE) {
+              await saveBatch();
+            } else {
+              scheduleBatchSave();
+            }
+
+            // This will be sent to the side panel - frontend
+            const data = {
+              tab: null,
+              screenshot: uploadedScreenshotUrl, // This will be the public URL of the screenshot
+              info: message.data,
+            };
+
+            sendResponse({ success: true, data: data });
           } else {
-            scheduleBatchSave();
+            const errorText = await response.text();
+            console.error("Upload failed:", response.status, errorText);
+            sendResponse({
+              success: false,
+              error: `Upload failed: ${response.status} ${errorText}`,
+            });
           }
-
-          const data = {
-            tab: null,
-            screenshot: dataUrl, // This will be the public URL of the screenshot
-            info: message.data,
-          };
-          sendResponse({ success: true, data: data });
         }
       );
       return true; // Keep message channel open
@@ -314,4 +340,9 @@ async function checkAuthStatus() {
   } catch (error) {
     console.error("Auth status check error:", error);
   }
+}
+
+async function dataURLtoBlob(dataURL) {
+  const response = await fetch(dataURL);
+  return await response.blob();
 }
