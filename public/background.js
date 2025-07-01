@@ -185,33 +185,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
 
-          // upload the screenshot to Google Drive or any other storage
+          // upload the screenshot to Google Drive
           const formData = new FormData();
 
           // Convert data URL to Blob
           const blob = await dataURLtoBlob(dataUrl);
-          console.log(blob, "Blob created from data URL");
           formData.append("file", blob, "screenshot.png");
-
-          console.log(formData, "FormData before upload");
-
           const response = await fetch(
             "http://localhost:8000/google-drive/upload-image",
             {
               method: "POST",
               body: formData,
-              credentials: "include", // for cookies or session
-              // Don't set Content-Type manually
+              credentials: "include",
             }
           );
 
           if (response.ok) {
             // Parse the JSON response
             const result = await response.json();
-            console.log("Upload successful:", result);
-
             const uploadedScreenshotUrl = result?.publicUrl;
 
+            // added the uploaded screenshot URL to the buffer
             captureBuffer.push(uploadedScreenshotUrl);
             infoBuffer.push(message.data);
 
@@ -221,6 +215,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               scheduleBatchSave();
             }
 
+            // This will be sent to the side panel - frontend
             const data = {
               tab: null,
               screenshot: uploadedScreenshotUrl, // This will be the public URL of the screenshot
@@ -229,7 +224,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
             sendResponse({ success: true, data: data });
           } else {
-            // Handle error responses
             const errorText = await response.text();
             console.error("Upload failed:", response.status, errorText);
             sendResponse({
