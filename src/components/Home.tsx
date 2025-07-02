@@ -631,6 +631,11 @@ const Home = ({ name }: { name: string }) => {
                 </p>
               </div>
             )}
+            <div>
+              <p className="text-sm text-gray-600">
+                {captures.length} screenshots captured
+              </p>
+            </div>
             <div className="mt-4 flex justify-between items-center w-full">
               <Button
                 onClick={handleClearData}
