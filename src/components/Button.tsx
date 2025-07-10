@@ -12,13 +12,13 @@ const Button = (props: Props) => {
       onClick={props.onClick}
       type="button"
       className={
-        props.color === "primary" || props.color === "google"
+        props.color === "primary"
           ? "btn-primary max-w-[300px]"
-          : "btn-secondary max-w-[300px]"
+          : "btn-secondary max-w-[300px] "
       }
     >
       <div
-        className={`flex items-center justify-center gap-1 relative ${
+        className={`flex items-center justify-center gap-1 relative  ${
           props.color === "google" ? "p-1" : ""
         }`}
       >
@@ -26,7 +26,7 @@ const Button = (props: Props) => {
           <img src={record} alt={`${props.text} button`} />
         )}
         {props.color === "google" && (
-          <div className=" bg-white absolute left-0 rounded-full p-1">
+          <div className=" bg-white absolute left-0 rounded-full p-1 ">
             <img
               src={google}
               alt={`${props.text} button`}

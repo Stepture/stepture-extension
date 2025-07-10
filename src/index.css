@@ -14,7 +14,7 @@
 }
 
 .btn-secondary {
-  @apply text-gray text-sm px-6 py-2 rounded-md min-w-40 w-full  bg-white border-1 border-corner outline-0 focus:outline-0;
+  @apply text-gray text-sm px-6 py-2 rounded-lg min-w-40 w-full  bg-white border-1 border-corner outline-0 focus:outline-0 border-slate-200;
 }
 
 .no-scrollbar {
