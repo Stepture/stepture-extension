@@ -30,49 +30,53 @@ const injectContentScript = async (tabId, tabUrl) => {
     tabUrl.startsWith("chrome://") ||
     tabUrl.startsWith("chrome-extension://") ||
     tabUrl.startsWith("edge://") ||
-    tabUrl.startsWith("about:")
+    tabUrl.startsWith("about:") ||
+    tabUrl.startsWith("moz-extension://") ||
+    tabUrl.startsWith("file://")
   ) {
-    return;
+    console.log(`Skipping injection for restricted URL: ${tabUrl}`);
+    return false;
   }
-  if (activeTabId === tabId) {
-    return;
-  }
+
   try {
+    // Always inject, even if it's the same tab (handles page reloads)
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
       files: ["content.js"],
     });
+
+    // Send capture status to the newly injected script
+    if (isCapturing) {
+      await chrome.tabs.sendMessage(tabId, {
+        action: "capture_status_changed",
+        isCapturing: true,
+      });
+    }
+
+    console.log(`Content script injected into tab ${tabId}`);
+    return true;
   } catch (error) {
     console.error(`Failed to inject content script into tab ${tabId}:`, error);
     return false;
   }
 };
 
-const removeContentScript = async (tabId) => {
-  chrome.tabs.sendMessage({
-    action: "capture_status_changed",
-    isCapturing: false,
-  });
-  if (!tabId) {
-    return;
-  }
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: () => {
-        // Remove the content script by removing the script element
-        const scriptElement = document.querySelector(
-          'script[src*="content.js"]'
-        );
-        if (scriptElement) {
-          scriptElement.remove();
-        }
-      },
-    });
+const disableContentScript = async (tabId) => {
+  if (!tabId) return false;
 
-    console.log(`Content script removed from tab ${tabId}`);
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      action: "capture_status_changed",
+      isCapturing: false,
+    });
+    console.log(`Content script disabled in tab ${tabId}`);
+    return true;
   } catch (error) {
-    console.error(`Failed to remove content script from tab ${tabId}:`, error);
+    // Tab might be closed or script not injected - this is normal
+    console.log(
+      `Could not disable content script in tab ${tabId}: ${error.message}`
+    );
+    return false;
   }
 };
 
@@ -114,23 +118,28 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // Purpose : The onActivated event is fired when a tab is activated or changed
 // Permission : "tabs" permission
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  // remove the content script from the previously active tab
-  if (activeTabId) {
-    try {
-      await removeContentScript(activeTabId);
-      activeTabId = null; // Reset active tab ID after removing content script
-      console.log(`Content script removed from tab ${activeTabId}`);
-    } catch (error) {
-      console.error(
-        `Failed to remove content script from tab ${activeTabId}:`,
-        error
-      );
-    }
+  const previousTabId = activeTabId;
+
+  // Disable content script in the previously active tab
+  if (previousTabId && previousTabId !== activeInfo.tabId) {
+    await disableContentScript(previousTabId);
+    console.log(`Content script disabled in previous tab ${previousTabId}`);
   }
+
+  // Update active tab ID
+  activeTabId = activeInfo.tabId;
+
+  // Inject content script into the newly activated tab if capturing
   if (isCapturing) {
-    const tab = await chrome.tabs.get(activeInfo.tabId);
-    injectContentScript(tab.id, tab.url); // inject content script into the newly activated or changed tab
-    activeTabId = tab.id; // Update the active tab ID
+    try {
+      const tab = await chrome.tabs.get(activeInfo.tabId);
+      const injected = await injectContentScript(tab.id, tab.url);
+      if (injected) {
+        console.log(`Content script injected into new active tab ${tab.id}`);
+      }
+    } catch (error) {
+      console.error(`Failed to get tab info for ${activeInfo.tabId}:`, error);
+    }
   }
 });
 
@@ -162,15 +171,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "stopCapture":
       isCapturing = false;
 
-      chrome.tabs.sendMessage(activeTabId, {
-        action: "capture_status_changed",
-        isCapturing: isCapturing,
-      });
-      removeContentScript(activeTabId);
-      activeTabId = null; // Reset active tab ID
-
-      if (captureBuffer.length > 0) {
-        saveBatch();
+      if (activeTabId) {
+        disableContentScript(activeTabId);
+        activeTabId = null;
       }
 
       sendResponse({ success: true, isCapturing: false });
@@ -178,45 +181,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "pauseCapture":
       isCapturing = false;
-      chrome.tabs.sendMessage(activeTabId, {
-        action: "capture_status_changed",
-        isCapturing: isCapturing,
-      });
 
-      removeContentScript(activeTabId); // This will prevent from showing the blue cicle
-      activeTabId = null;
-
-      if (captureBuffer.length > 0) {
-        saveBatch();
+      if (activeTabId) {
+        disableContentScript(activeTabId);
+        activeTabId = null;
       }
+
       sendResponse({ success: true, isCapturing: false });
       break;
 
     case "resumeCapture":
       isCapturing = true;
 
-      // Re-inject content script into the active tab
       if (activeTabId) {
-        chrome.tabs.sendMessage(activeTabId, {
-          action: "capture_status_changed",
-          isCapturing: isCapturing,
-        });
-        injectContentScript(activeTabId, null); // Pass null to use the current tab URL
+        try {
+          const tab = chrome.tabs.get(activeTabId);
+          injectContentScript(activeTabId, tab.url);
+        } catch (error) {
+          console.error("Failed to resume capture:", error);
+          // Fallback: query current active tab
+          chrome.tabs.query(
+            { active: true, currentWindow: true },
+            async (tabs) => {
+              if (tabs.length > 0) {
+                const activeTab = tabs[0];
+                await injectContentScript(activeTab.id, activeTab.url);
+                activeTabId = activeTab.id;
+              }
+            }
+          );
+        }
       } else {
         // If no active tab ID, query the current active tab
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          if (tabs.length > 0) {
-            const activeTab = tabs[0];
-            injectContentScript(activeTab.id, activeTab.url);
-            activeTabId = activeTab.id; // Update the active tab ID
-            chrome.tabs.sendMessage(activeTabId, {
-              action: "capture_status_changed",
-              isCapturing: isCapturing,
-            });
-          } else {
-            console.warn("No active tab found to inject content script.");
+        chrome.tabs.query(
+          { active: true, currentWindow: true },
+          async (tabs) => {
+            if (tabs.length > 0) {
+              const activeTab = tabs[0];
+              await injectContentScript(activeTab.id, activeTab.url);
+              activeTabId = activeTab.id;
+            } else {
+              console.warn("No active tab found to inject content script.");
+            }
           }
-        });
+        );
       }
 
       sendResponse({ success: true, isCapturing: true });
