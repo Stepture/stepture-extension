@@ -24,6 +24,9 @@ chrome.sidePanel
 // Permission : "scripting" permission
 
 const injectContentScript = async (tabId, tabUrl) => {
+  if (!isCapturing) {
+    return false;
+  }
   if (
     !tabId ||
     !tabUrl ||
