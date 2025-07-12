@@ -353,8 +353,6 @@ const Home = ({ name }: { name: string }) => {
             info: message.message?.info,
             imgId: message.message?.imgId,
           };
-          // console.log("New screenshot captured:", newCapture);
-          // console.log(captures);
           setCaptures((prev) => [...prev, newCapture]);
         }
         break;
@@ -394,6 +392,7 @@ const Home = ({ name }: { name: string }) => {
         if (response.success) {
           setCaptures(response.data || []);
           setIsCaptured(response.isCapturing || false);
+          return response.data || [];
         } else {
           throw new Error(response.error || "Failed to load data");
         }
@@ -479,35 +478,34 @@ const Home = ({ name }: { name: string }) => {
       "stopCapture",
       async () => {
         setIsCaptured(false);
+        const stepstoSave = await loadData(true);
         try {
-          const steps = captures.map((capture, idx) => ({
+          const steps = (stepstoSave || []).map((capture, idx) => ({
             stepDescription: capture.info.textContent
               ? `Click: ${capture.info.textContent}`
               : `Step ${idx + 1}`,
             type: "STEP",
             stepNumber: idx + 1,
-            screenshot: capture.screenshot
-              ? {
-                  googleImageId: capture.imgId,
-                  url: capture.screenshot,
-                  viewportX: capture.info.coordinates.viewport.x || 0,
-                  viewportY: capture.info.coordinates.viewport.y || 0,
-                  viewportWidth:
-                    capture.info.captureContext?.viewportWidth || 0,
-                  viewportHeight:
-                    capture.info.captureContext?.viewportHeight || 0,
-                  devicePixelRatio:
-                    capture.info.captureContext?.devicePixelRatio || 1,
-                }
-              : undefined,
+            screenshot: {
+              googleImageId: capture.imgId,
+              url: capture.screenshot,
+              viewportX: capture.info.coordinates.viewport.x || 0,
+              viewportY: capture.info.coordinates.viewport.y || 0,
+              viewportWidth: capture.info.captureContext?.viewportWidth || 0,
+              viewportHeight: capture.info.captureContext?.viewportHeight || 0,
+              devicePixelRatio:
+                capture.info.captureContext?.devicePixelRatio || 1,
+            },
           }));
-          const data = await api.protected.createDocument({
+          const datatosave = {
             title: "My Document",
             description: "Created from Stepture Extension",
             steps,
-          });
+          };
+
+          const data = await api.protected.createDocument(datatosave);
+
           if (data && data.id) {
-            console.log("Document created successfully:", data);
             setTimeout(() => loadData(true), 500);
             handleClearData();
             window.open(

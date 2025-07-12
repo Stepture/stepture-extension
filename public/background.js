@@ -1,10 +1,4 @@
 let isCapturing = false;
-let captureBuffer = [];
-let infoBuffer = [];
-const BATCH_SIZE = 3; // Save every 3 screenshots
-const BATCH_TIMEOUT = 2000; // Or after 2 seconds
-const MAX_STORAGE_ITEMS = 100; // Prevent memory issues
-let batchTimeout;
 
 // This will track the currently active tab ID
 // My idea is to remove the content script from the previously active tab
@@ -22,7 +16,6 @@ chrome.sidePanel
 // API : chrome.scripting
 // Purpose : The Scripting API allows extensions to inject scripts into web pages
 // Permission : "scripting" permission
-
 const injectContentScript = async (tabId, tabUrl) => {
   if (!isCapturing) {
     return false;
@@ -234,101 +227,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "capture_screenshot":
-      if (!isCapturing) {
-        sendResponse({ success: false, error: "Not capturing" });
-        return;
-      }
-
-      // API : chrome.tabs.captureVisibleTab
-      // Purpose : Capture a screenshot of the visible area of the currently active tab
-      // Permission : "tabs" permission
       chrome.tabs.captureVisibleTab(
         null,
         { format: "png" },
         async (dataUrl) => {
-          if (chrome.runtime.lastError) {
-            console.error("Screenshot error:", chrome.runtime.lastError);
-            sendResponse({
-              success: false,
-              error: chrome.runtime.lastError.message,
-            });
-            return;
-          }
-
-          // upload the screenshot to Google Drive
-          const formData = new FormData();
-
-          // Convert data URL to Blob
-          const blob = await dataURLtoBlob(dataUrl);
-          formData.append("file", blob, "screenshot.png");
-          const response = await fetch(
-            "http://localhost:8000/google-drive/upload-image",
-            {
-              method: "POST",
-              body: formData,
-              credentials: "include",
-            }
-          );
-
-          if (response.ok) {
-            // Parse the JSON response
-            const result = await response.json();
-            const uploadedScreenshotUrl = result?.publicUrl;
-            const uploadedScreenshotId = result?.imgId;
-            console.log(
-              "Screenshot uploaded successfully:",
-              uploadedScreenshotUrl,
-              uploadedScreenshotId
-            );
-            captureBuffer.push({
-              url: uploadedScreenshotUrl,
-              id: uploadedScreenshotId,
-            });
-            infoBuffer.push(message.data);
-
-            if (captureBuffer.length >= BATCH_SIZE) {
-              await saveBatch();
-            } else {
-              scheduleBatchSave();
-            }
-
-            // This will be sent to the side panel - frontend
-            const data = {
-              tab: null,
-              screenshot: uploadedScreenshotUrl,
-              imgId: uploadedScreenshotId,
-              info: message.data,
-            };
-
-            sendResponse({ success: true, data: data });
-          } else {
-            const errorText = await response.text();
-            console.error("Upload failed:", response.status, errorText);
-            sendResponse({
-              success: false,
-              error: `Upload failed: ${response.status} ${errorText}`,
-            });
-          }
+          // Save immediately with pending upload status
+          const captureData = {
+            tab: null,
+            screenshot: dataUrl,
+            imgId: null,
+            info: message.data,
+            uploadStatus: "pending",
+            timestamp: new Date().toISOString(),
+          };
+          sendResponse({ success: true, data: captureData });
+          // Save to storage immediately
+          const storageData = await chrome.storage.local.get({ captures: [] });
+          storageData.captures.push(captureData);
+          await chrome.storage.local.set(storageData);
+          uploadInBackground(captureData);
         }
       );
       return true;
 
     // frontend requests data
     case "get_data":
+      checkUploadedStatus(); // Check for pending uploads before sending data
       chrome.storage.local.get({ captures: [] }, (data) => {
         sendResponse({
           success: true,
           data: data.captures,
           isCapturing: isCapturing,
-          bufferSize: captureBuffer.length,
         });
       });
       return true;
 
     case "clear_data":
       chrome.storage.local.set({ captures: [] }, () => {
-        captureBuffer = [];
-        infoBuffer = [];
         sendResponse({ success: true });
       });
       return true;
@@ -337,7 +272,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "get_status":
       sendResponse({
         isCapturing: isCapturing,
-        bufferSize: captureBuffer.length,
       });
       break;
 
@@ -353,53 +287,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     default:
       console.warn("Unknown action received: ", message.action);
       sendResponse({ success: false, error: "Unknown action" });
-  }
-});
-
-// Batch save function
-async function saveBatch() {
-  if (captureBuffer.length === 0) return;
-
-  try {
-    const data = await chrome.storage.local.get({ captures: [] });
-
-    // Build new batch as array of objects
-    const newCaptures = captureBuffer.map((screenshot, i) => ({
-      tab: null,
-      screenshot,
-      info: infoBuffer[i],
-    }));
-
-    // Limit total items to prevent memory issues
-    let captures = [...data.captures, ...newCaptures];
-    if (captures.length > MAX_STORAGE_ITEMS) {
-      captures = captures.slice(captures.length - MAX_STORAGE_ITEMS);
-    }
-
-    await chrome.storage.local.set({ captures });
-
-    console.log(
-      `Batch saved: ${newCaptures.length} new items, ${captures.length} total`
-    );
-    captureBuffer = [];
-    infoBuffer = [];
-  } catch (error) {
-    console.error("Error saving batch:", error);
-  }
-}
-
-// Schedule batch save after a timeout
-function scheduleBatchSave() {
-  clearTimeout(batchTimeout);
-  batchTimeout = setTimeout(saveBatch, BATCH_TIMEOUT);
-}
-
-// API : chrome.runtime.onSuspend
-// Purpose : The onSuspend event is fired when the extension is about to be unloaded
-// Permission : "runtime" permission
-chrome.runtime.onSuspend.addListener(() => {
-  if (captureBuffer.length > 0) {
-    saveBatch();
   }
 });
 
@@ -423,4 +310,55 @@ async function checkAuthStatus() {
 async function dataURLtoBlob(dataURL) {
   const response = await fetch(dataURL);
   return await response.blob();
+}
+
+const uploadQueue = [];
+
+async function checkUploadedStatus() {
+  const storageData = await chrome.storage.local.get({ captures: [] });
+  const pendingCaptures = storageData.captures.filter(
+    (capture) => capture.uploadStatus === "pending"
+  );
+  if (pendingCaptures.length > 0) {
+    for (const capture of pendingCaptures) {
+      await uploadInBackground(capture);
+    }
+  } else {
+    console.log("No pending captures to upload.");
+  }
+}
+
+async function uploadInBackground(captureData) {
+  try {
+    const formData = new FormData();
+    const blob = await dataURLtoBlob(captureData.screenshot);
+    formData.append("file", blob, "screenshot.png");
+
+    const response = await fetch(
+      "http://localhost:8000/google-drive/upload-image",
+      {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      }
+    );
+
+    if (response.ok) {
+      const result = await response.json();
+      // Update storage with uploaded URL
+      const storageData = await chrome.storage.local.get({ captures: [] });
+      const captureIndex = storageData.captures.findIndex(
+        (c) => c.timestamp === captureData.timestamp
+      );
+
+      if (captureIndex !== -1) {
+        storageData.captures[captureIndex].screenshot = result.publicUrl;
+        storageData.captures[captureIndex].imgId = result.imgId;
+        storageData.captures[captureIndex].uploadStatus = "completed";
+        await chrome.storage.local.set(storageData);
+      }
+    }
+  } catch (error) {
+    console.error("Background upload failed:", error);
+  }
 }
