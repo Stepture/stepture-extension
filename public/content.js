@@ -1,5 +1,3 @@
-console.log("Content script is running...");
-
 let isCapturing = false;
 let lastClickTime = 0;
 const CLICK_DEBOUNCE = 500; // Prevent rapid clicks
@@ -11,7 +9,6 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
   }
 });
 
-// Listen for capture status changes
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
     isCapturing = message.isCapturing;
@@ -19,7 +16,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 document.addEventListener("click", async (event) => {
-  // Only process clicks when capturing
   if (!isCapturing) return;
 
   // Debounce rapid clicks
@@ -68,6 +64,10 @@ document.addEventListener("click", async (event) => {
   };
 
   try {
+    if (isCapturing) {
+      showClickFeedback(element, pageX, pageY);
+    }
+
     // to frontend for skeleton loading
     await chrome.runtime.sendMessage({
       action: "capture_start",
@@ -89,7 +89,6 @@ document.addEventListener("click", async (event) => {
         action: "screenshot_captured",
         message: response.data,
       });
-      showClickFeedback(element, pageX, pageY);
     } else {
       console.warn("Screenshot capture failed:", response?.error);
     }
