@@ -5,6 +5,8 @@ let isCapturing = false;
 // when the user switches to a new tab, and then inject it into the newly active tab
 // This way, we can ensure that the content script is only active in the currently focused tab.
 let activeTabId;
+let activeTabisRecorded = false;
+let activeTabUrl;
 
 // API : chrome.sidePanel
 // Purpose : The Side Panel API allows extensions to display their own UI in the side panel
@@ -88,6 +90,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (tabs.length > 0) {
     const activeTab = tabs[0];
     activeTabId = activeTab.id; // Update the active tab ID
+    activeTabUrl = activeTab.url; // Store the active tab URL
     injectContentScript(activeTab.id, activeTab.url);
   } else {
     console.warn("No active tab found to inject content script.");
@@ -114,6 +117,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // Purpose : The onActivated event is fired when a tab is activated or changed
 // Permission : "tabs" permission
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  activeTabisRecorded = false; // Reset the flag when switching tabs
   const previousTabId = activeTabId;
 
   // Disable content script in the previously active tab
@@ -124,6 +128,13 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
   // Update active tab ID
   activeTabId = activeInfo.tabId;
+  try {
+    const activeTab = await chrome.tabs.get(activeInfo.tabId);
+    activeTabUrl = activeTab.url; // Store the active tab URL
+  } catch (error) {
+    console.error(`Failed to get tab info for ${activeInfo.tabId}:`, error);
+    activeTabUrl = null; // Reset URL if tab info cannot be retrieved
+  }
 
   // Inject content script into the newly activated tab if capturing
   if (isCapturing) {
@@ -150,6 +161,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (tabs.length > 0) {
           const activeTab = tabs[0];
           activeTabId = activeTab.id; // Update the active tab ID
+          activeTabUrl = activeTab.url; // Store the active tab URL
           injectContentScript(activeTab.id, activeTab.url);
         } else {
           console.warn("No active tab found to inject content script.");
@@ -227,6 +239,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "capture_screenshot":
+      if (!isCapturing) {
+        sendResponse({ success: false, error: "Not capturing" });
+        return;
+      }
+
+      // Save tab URL as step if this is the first screenshot in this tab
+      if (activeTabId && !activeTabisRecorded) {
+        try {
+          console.log("Saving tab step for active tab:", activeTabId);
+
+          console.log("Tab info:", activeTabUrl);
+
+          saveTabAsStep({
+            tab: activeTabUrl,
+          });
+          activeTabisRecorded = true; // Mark this tab as recorded
+        } catch (error) {
+          console.error("Failed to save tab step:", error);
+        }
+      }
+
       chrome.tabs.captureVisibleTab(
         null,
         { format: "png" },
@@ -362,3 +395,51 @@ async function uploadInBackground(captureData) {
     console.error("Background upload failed:", error);
   }
 }
+
+const saveTabAsStep = async (tab) => {
+  if (!isCapturing) return;
+
+  // Save tab step only if it hasn't been recorded yet
+  if (activeTabisRecorded) return;
+
+  try {
+    const tabData = {
+      tab: tab?.tab,
+      screenshot: null,
+      imgId: null,
+      info: {
+        textContent: `Navigate to: ${tab?.tab}`,
+        coordinates: { viewport: { x: 0, y: 0 } },
+        captureContext: {
+          devicePixelRatio: 1,
+          viewportWidth: 0,
+          viewportHeight: 0,
+          screenWidth: 0,
+          screenHeight: 0,
+        },
+        tagName: "TAB_NAVIGATION",
+        stepType: "navigation",
+      },
+      uploadStatus: "completed",
+      timestamp: new Date().toISOString(),
+    };
+
+    // Save tab step to storage
+    const storageData = await chrome.storage.local.get({ captures: [] });
+    storageData.captures.push(tabData);
+    await chrome.storage.local.set(storageData);
+
+    // Notify frontend
+    try {
+      chrome.runtime.sendMessage({
+        action: "screenshot_captured",
+        message: tabData,
+      });
+    } catch (e) {
+      // Frontend might not be listening
+    }
+    console.log("Tab navigation step saved:", tabData);
+  } catch (error) {
+    console.error("Failed to save tab step:", error);
+  }
+};

@@ -346,6 +346,8 @@ const Home = ({ name }: { name: string }) => {
       case "screenshot_captured":
         // When there is a new screenshot captured.
         // we only add it to the captures state
+        console.log("New screenshot captured:", message);
+        console.log("Capture data:", message.message);
         if (message.message) {
           const newCapture: CaptureData = {
             tab: message.message?.tab,
@@ -497,11 +499,70 @@ const Home = ({ name }: { name: string }) => {
                 capture.info.captureContext?.devicePixelRatio || 1,
             },
           }));
+          console.log("Steps to save:", steps);
           const datatosave = {
             title: "My Document",
             description: "Created from Stepture Extension",
-            steps,
+            steps: [
+              {
+                stepDescription:
+                  "Click: Navigate to: http://localhost:3000/dashboard/saved",
+                type: "STEP",
+                stepNumber: 1,
+              },
+              {
+                stepDescription: "Click: Home",
+                type: "STEP",
+                stepNumber: 2,
+                screenshot: {
+                  googleImageId: "1iJZ6UnzXXUBNCloBSEypiRcJvE_S-MB2",
+                  url: "https://lh3.googleusercontent.com/d/1iJZ6UnzXXUBNCloBSEypiRcJvE_S-MB2",
+                  viewportX: 137,
+                  viewportY: 70,
+                  viewportWidth: 1541,
+                  viewportHeight: 958,
+                  devicePixelRatio: 1,
+                },
+              },
+              {
+                stepDescription: "Click: Trash",
+                type: "STEP",
+                stepNumber: 3,
+                screenshot: {
+                  googleImageId: "1gwFxmk03pefadMt0MNfQsAFJ8NeD_yZX",
+                  url: "https://lh3.googleusercontent.com/d/1gwFxmk03pefadMt0MNfQsAFJ8NeD_yZX",
+                  viewportX: 85,
+                  viewportY: 184,
+                  viewportWidth: 1541,
+                  viewportHeight: 958,
+                  devicePixelRatio: 1,
+                },
+              },
+              {
+                stepDescription:
+                  "Click: Navigate to: https://www.facebook.com/",
+                type: "STEP",
+                stepNumber: 4,
+              },
+              {
+                stepDescription:
+                  "Click: dotpnrSose15113hh7uaagti775t585l7ahf62m840gl2u1440u2uclum2um  · Shared with Public",
+                type: "STEP",
+                stepNumber: 5,
+                screenshot: {
+                  googleImageId: "1HkbOTotdIVco76auU5-VBv31n-GlQdOH",
+                  url: "https://lh3.googleusercontent.com/d/1HkbOTotdIVco76auU5-VBv31n-GlQdOH",
+                  viewportX: 651,
+                  viewportY: 469,
+                  viewportWidth: 1541,
+                  viewportHeight: 958,
+                  devicePixelRatio: 1,
+                },
+              },
+            ],
           };
+
+          console.log("Data to save:", datatosave);
 
           const data = await api.protected.createDocument(datatosave);
 
@@ -597,10 +658,10 @@ const Home = ({ name }: { name: string }) => {
             <div className="screenshots grid gap-4">
               {loading && captures.length === 0 ? (
                 <p className="text-center text-gray-500">Loading...</p>
-              ) : captures.length > 0 ? (
-                captures.map((capture, index) => (
+              ) : captures?.length > 0 ? (
+                captures?.map((capture, index) => (
                   <div
-                    key={`${index}-${capture.screenshot.substring(0, 20)}`}
+                    key={`${index}-${capture?.screenshot?.substring(0, 20)}`}
                     ref={index === captures.length - 1 ? lastCaptureRef : null}
                   >
                     <ResponsiveScreenshotItem
