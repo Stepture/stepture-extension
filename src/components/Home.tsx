@@ -247,46 +247,56 @@ const ResponsiveScreenshotItem = ({
         {info && (
           <div className="space-y-1">
             <p>
-              <span className="font-medium">Click:</span>{" "}
+              {img ? (
+                <span className="font-medium">Click: </span>
+              ) : (
+                <span className="font-medium">Navigate to: </span>
+              )}
+
               <span className="text-slate-600">
-                {info.textContent && (
+                {info.textContent && img ? (
                   <span className="text-slate-800">"{info.textContent}"</span>
+                ) : (
+                  <span className="text-blue-800 underline">
+                    {info.textContent}
+                  </span>
                 )}
               </span>
             </p>
           </div>
         )}
       </div>
+      {img && (
+        <div className="relative w-full">
+          <img
+            ref={imgRef}
+            src={img}
+            alt={`Screenshot ${index + 1}`}
+            className="screenshot-img w-full rounded-md block"
+            loading="lazy"
+            onLoad={handleImageLoad}
+            onError={() =>
+              console.error(`Failed to load image for step ${index + 1}`)
+            }
+          />
 
-      <div className="relative w-full">
-        <img
-          ref={imgRef}
-          src={img}
-          alt={`Screenshot ${index + 1}`}
-          className="screenshot-img w-full rounded-md block"
-          loading="lazy"
-          onLoad={handleImageLoad}
-          onError={() =>
-            console.error(`Failed to load image for step ${index + 1}`)
-          }
-        />
-
-        {info?.coordinates &&
-          imageDimensions.width > 0 &&
-          containerWidth > 0 && (
-            <div
-              className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
-              style={{
-                ...getResponsivePosition(),
-                width: `${getIndicatorSize()}px`,
-                height: `${getIndicatorSize()}px`,
-              }}
-              aria-label={`Click indicator for step ${index + 1}`}
-            >
-              <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
-            </div>
-          )}
-      </div>
+          {info?.coordinates &&
+            imageDimensions.width > 0 &&
+            containerWidth > 0 && (
+              <div
+                className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
+                style={{
+                  ...getResponsivePosition(),
+                  width: `${getIndicatorSize()}px`,
+                  height: `${getIndicatorSize()}px`,
+                }}
+                aria-label={`Click indicator for step ${index + 1}`}
+              >
+                <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
+              </div>
+            )}
+        </div>
+      )}
     </div>
   );
 };
@@ -346,8 +356,7 @@ const Home = ({ name }: { name: string }) => {
       case "screenshot_captured":
         // When there is a new screenshot captured.
         // we only add it to the captures state
-        console.log("New screenshot captured:", message);
-        console.log("Capture data:", message.message);
+
         if (message.message) {
           const newCapture: CaptureData = {
             tab: message.message?.tab,
@@ -484,85 +493,32 @@ const Home = ({ name }: { name: string }) => {
         try {
           const steps = (stepstoSave || []).map((capture, idx) => ({
             stepDescription: capture.info.textContent
-              ? `Click: ${capture.info.textContent}`
+              ? `${capture.info.textContent}`
               : `Step ${idx + 1}`,
             type: "STEP",
             stepNumber: idx + 1,
-            screenshot: {
-              googleImageId: capture.imgId,
-              url: capture.screenshot,
-              viewportX: capture.info.coordinates.viewport.x || 0,
-              viewportY: capture.info.coordinates.viewport.y || 0,
-              viewportWidth: capture.info.captureContext?.viewportWidth || 0,
-              viewportHeight: capture.info.captureContext?.viewportHeight || 0,
-              devicePixelRatio:
-                capture.info.captureContext?.devicePixelRatio || 1,
-            },
-          }));
-          console.log("Steps to save:", steps);
-          const datatosave = {
-            title: "My Document",
-            description: "Created from Stepture Extension",
-            steps: [
-              {
-                stepDescription:
-                  "Click: Navigate to: http://localhost:3000/dashboard/saved",
-                type: "STEP",
-                stepNumber: 1,
-              },
-              {
-                stepDescription: "Click: Home",
-                type: "STEP",
-                stepNumber: 2,
-                screenshot: {
-                  googleImageId: "1iJZ6UnzXXUBNCloBSEypiRcJvE_S-MB2",
-                  url: "https://lh3.googleusercontent.com/d/1iJZ6UnzXXUBNCloBSEypiRcJvE_S-MB2",
-                  viewportX: 137,
-                  viewportY: 70,
-                  viewportWidth: 1541,
-                  viewportHeight: 958,
-                  devicePixelRatio: 1,
-                },
-              },
-              {
-                stepDescription: "Click: Trash",
-                type: "STEP",
-                stepNumber: 3,
-                screenshot: {
-                  googleImageId: "1gwFxmk03pefadMt0MNfQsAFJ8NeD_yZX",
-                  url: "https://lh3.googleusercontent.com/d/1gwFxmk03pefadMt0MNfQsAFJ8NeD_yZX",
-                  viewportX: 85,
-                  viewportY: 184,
-                  viewportWidth: 1541,
-                  viewportHeight: 958,
-                  devicePixelRatio: 1,
-                },
-              },
-              {
-                stepDescription:
-                  "Click: Navigate to: https://www.facebook.com/",
-                type: "STEP",
-                stepNumber: 4,
-              },
-              {
-                stepDescription:
-                  "Click: dotpnrSose15113hh7uaagti775t585l7ahf62m840gl2u1440u2uclum2um  · Shared with Public",
-                type: "STEP",
-                stepNumber: 5,
-                screenshot: {
-                  googleImageId: "1HkbOTotdIVco76auU5-VBv31n-GlQdOH",
-                  url: "https://lh3.googleusercontent.com/d/1HkbOTotdIVco76auU5-VBv31n-GlQdOH",
-                  viewportX: 651,
-                  viewportY: 469,
-                  viewportWidth: 1541,
-                  viewportHeight: 958,
-                  devicePixelRatio: 1,
-                },
-              },
-            ],
-          };
 
-          console.log("Data to save:", datatosave);
+            screenshot: capture?.screenshot
+              ? {
+                  googleImageId: capture.imgId,
+                  url: capture.screenshot,
+                  viewportX: capture.info.coordinates.viewport.x,
+                  viewportY: capture.info.coordinates.viewport.y,
+                  viewportWidth:
+                    capture.info.captureContext?.viewportWidth || 1541,
+                  viewportHeight:
+                    capture.info.captureContext?.viewportHeight || 958,
+                  devicePixelRatio:
+                    capture.info.captureContext?.devicePixelRatio || 1,
+                }
+              : undefined,
+          }));
+
+          const datatosave = {
+            title: "My Document" + new Date().toLocaleDateString(),
+            description: "Created from Stepture Extension",
+            steps,
+          };
 
           const data = await api.protected.createDocument(datatosave);
 

@@ -247,10 +247,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Save tab URL as step if this is the first screenshot in this tab
       if (activeTabId && !activeTabisRecorded) {
         try {
-          console.log("Saving tab step for active tab:", activeTabId);
-
-          console.log("Tab info:", activeTabUrl);
-
           saveTabAsStep({
             tab: activeTabUrl,
           });
@@ -408,7 +404,7 @@ const saveTabAsStep = async (tab) => {
       screenshot: null,
       imgId: null,
       info: {
-        textContent: `Navigate to: ${tab?.tab}`,
+        textContent: `${tab?.tab}`,
         coordinates: { viewport: { x: 0, y: 0 } },
         captureContext: {
           devicePixelRatio: 1,
@@ -429,7 +425,6 @@ const saveTabAsStep = async (tab) => {
     storageData.captures.push(tabData);
     await chrome.storage.local.set(storageData);
 
-    // Notify frontend
     try {
       chrome.runtime.sendMessage({
         action: "screenshot_captured",
@@ -438,7 +433,6 @@ const saveTabAsStep = async (tab) => {
     } catch (e) {
       // Frontend might not be listening
     }
-    console.log("Tab navigation step saved:", tabData);
   } catch (error) {
     console.error("Failed to save tab step:", error);
   }
