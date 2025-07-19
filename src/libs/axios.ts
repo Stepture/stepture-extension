@@ -21,14 +21,6 @@ type CreateDocument = {
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
-const publicApi = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
 const privateApi = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
@@ -39,10 +31,12 @@ const privateApi = axios.create({
 });
 
 async function refreshToken() {
-  await publicApi.get("/auth/refresh-token");
+  await privateApi.post("/auth/refresh-token");
 }
 
 let isRefreshing = false;
+let refreshAttempts = 0;
+const MAX_REFRESH_ATTEMPTS = 1;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
   reject: (reason?: any) => void;
@@ -57,28 +51,41 @@ const processQueue = (error: unknown = null) => {
     }
   });
   failedQueue = [];
+  if (!error) {
+    refreshAttempts = 0; // Reset attempts on success
+  }
 };
 
 privateApi.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
     if (
       error.response?.status !== 401 ||
       originalRequest._retry ||
-      error.response?.data?.message !== "Access token is missing or invalid"
+      originalRequest.url?.includes("/auth/refresh-token") ||
+      refreshAttempts >= MAX_REFRESH_ATTEMPTS
     ) {
+      if (originalRequest.url?.includes("/auth/refresh-token")) {
+        refreshAttempts = 0;
+        isRefreshing = false;
+      }
       return Promise.reject(error);
     }
 
     originalRequest._retry = true;
+
     if (!isRefreshing) {
       isRefreshing = true;
+      refreshAttempts++;
+
       try {
         await refreshToken();
         processQueue();
         return privateApi(originalRequest);
       } catch (refreshError) {
+        refreshAttempts = 0; // Reset on refresh failure
         processQueue(refreshError);
         return Promise.reject(refreshError);
       } finally {
