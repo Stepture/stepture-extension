@@ -247,46 +247,56 @@ const ResponsiveScreenshotItem = ({
         {info && (
           <div className="space-y-1">
             <p>
-              <span className="font-medium">Click:</span>{" "}
+              {img ? (
+                <span className="font-medium">Click: </span>
+              ) : (
+                <span className="font-medium">Navigate to: </span>
+              )}
+
               <span className="text-slate-600">
-                {info.textContent && (
+                {info.textContent && img ? (
                   <span className="text-slate-800">"{info.textContent}"</span>
+                ) : (
+                  <span className="text-blue-800 underline">
+                    {info.textContent}
+                  </span>
                 )}
               </span>
             </p>
           </div>
         )}
       </div>
+      {img && (
+        <div className="relative w-full">
+          <img
+            ref={imgRef}
+            src={img}
+            alt={`Screenshot ${index + 1}`}
+            className="screenshot-img w-full rounded-md block"
+            loading="lazy"
+            onLoad={handleImageLoad}
+            onError={() =>
+              console.error(`Failed to load image for step ${index + 1}`)
+            }
+          />
 
-      <div className="relative w-full">
-        <img
-          ref={imgRef}
-          src={img}
-          alt={`Screenshot ${index + 1}`}
-          className="screenshot-img w-full rounded-md block"
-          loading="lazy"
-          onLoad={handleImageLoad}
-          onError={() =>
-            console.error(`Failed to load image for step ${index + 1}`)
-          }
-        />
-
-        {info?.coordinates &&
-          imageDimensions.width > 0 &&
-          containerWidth > 0 && (
-            <div
-              className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
-              style={{
-                ...getResponsivePosition(),
-                width: `${getIndicatorSize()}px`,
-                height: `${getIndicatorSize()}px`,
-              }}
-              aria-label={`Click indicator for step ${index + 1}`}
-            >
-              <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
-            </div>
-          )}
-      </div>
+          {info?.coordinates &&
+            imageDimensions.width > 0 &&
+            containerWidth > 0 && (
+              <div
+                className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
+                style={{
+                  ...getResponsivePosition(),
+                  width: `${getIndicatorSize()}px`,
+                  height: `${getIndicatorSize()}px`,
+                }}
+                aria-label={`Click indicator for step ${index + 1}`}
+              >
+                <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
+              </div>
+            )}
+        </div>
+      )}
     </div>
   );
 };
@@ -346,6 +356,7 @@ const Home = ({ name }: { name: string }) => {
       case "screenshot_captured":
         // When there is a new screenshot captured.
         // we only add it to the captures state
+
         if (message.message) {
           const newCapture: CaptureData = {
             tab: message.message?.tab,
@@ -482,23 +493,29 @@ const Home = ({ name }: { name: string }) => {
         try {
           const steps = (stepstoSave || []).map((capture, idx) => ({
             stepDescription: capture.info.textContent
-              ? `Click: ${capture.info.textContent}`
+              ? `${capture.info.textContent}`
               : `Step ${idx + 1}`,
             type: "STEP",
             stepNumber: idx + 1,
-            screenshot: {
-              googleImageId: capture.imgId,
-              url: capture.screenshot,
-              viewportX: capture.info.coordinates.viewport.x || 0,
-              viewportY: capture.info.coordinates.viewport.y || 0,
-              viewportWidth: capture.info.captureContext?.viewportWidth || 0,
-              viewportHeight: capture.info.captureContext?.viewportHeight || 0,
-              devicePixelRatio:
-                capture.info.captureContext?.devicePixelRatio || 1,
-            },
+
+            screenshot: capture?.screenshot
+              ? {
+                  googleImageId: capture.imgId,
+                  url: capture.screenshot,
+                  viewportX: capture.info.coordinates.viewport.x,
+                  viewportY: capture.info.coordinates.viewport.y,
+                  viewportWidth:
+                    capture.info.captureContext?.viewportWidth || 1541,
+                  viewportHeight:
+                    capture.info.captureContext?.viewportHeight || 958,
+                  devicePixelRatio:
+                    capture.info.captureContext?.devicePixelRatio || 1,
+                }
+              : undefined,
           }));
+
           const datatosave = {
-            title: "My Document",
+            title: "My Document" + new Date().toLocaleDateString(),
             description: "Created from Stepture Extension",
             steps,
           };
@@ -597,10 +614,10 @@ const Home = ({ name }: { name: string }) => {
             <div className="screenshots grid gap-4">
               {loading && captures.length === 0 ? (
                 <p className="text-center text-gray-500">Loading...</p>
-              ) : captures.length > 0 ? (
-                captures.map((capture, index) => (
+              ) : captures?.length > 0 ? (
+                captures?.map((capture, index) => (
                   <div
-                    key={`${index}-${capture.screenshot.substring(0, 20)}`}
+                    key={`${index}-${capture?.screenshot?.substring(0, 20)}`}
                     ref={index === captures.length - 1 ? lastCaptureRef : null}
                   >
                     <ResponsiveScreenshotItem
