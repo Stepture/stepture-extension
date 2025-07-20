@@ -21,6 +21,15 @@ type CreateDocument = {
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
+const refreshApi = axios.create({
+  baseURL: BASE_URL,
+  timeout: 10000,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
 const privateApi = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
@@ -31,12 +40,10 @@ const privateApi = axios.create({
 });
 
 async function refreshToken() {
-  await privateApi.post("/auth/refresh-token");
+  await refreshApi.post("/auth/refresh-token");
 }
 
 let isRefreshing = false;
-let refreshAttempts = 0;
-const MAX_REFRESH_ATTEMPTS = 1;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
   reject: (reason?: any) => void;
@@ -51,9 +58,6 @@ const processQueue = (error: unknown = null) => {
     }
   });
   failedQueue = [];
-  if (!error) {
-    refreshAttempts = 0; // Reset attempts on success
-  }
 };
 
 privateApi.interceptors.response.use(
@@ -61,16 +65,7 @@ privateApi.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (
-      error.response?.status !== 401 ||
-      originalRequest._retry ||
-      originalRequest.url?.includes("/auth/refresh-token") ||
-      refreshAttempts >= MAX_REFRESH_ATTEMPTS
-    ) {
-      if (originalRequest.url?.includes("/auth/refresh-token")) {
-        refreshAttempts = 0;
-        isRefreshing = false;
-      }
+    if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
 
@@ -78,14 +73,12 @@ privateApi.interceptors.response.use(
 
     if (!isRefreshing) {
       isRefreshing = true;
-      refreshAttempts++;
 
       try {
         await refreshToken();
         processQueue();
         return privateApi(originalRequest);
       } catch (refreshError) {
-        refreshAttempts = 0; // Reset on refresh failure
         processQueue(refreshError);
         return Promise.reject(refreshError);
       } finally {
