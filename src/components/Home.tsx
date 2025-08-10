@@ -602,7 +602,7 @@ const Home = ({ name }: { name: string }) => {
               ) : captures.length > 0 ? (
                 captures.map((capture, index) => (
                   <div
-                    key={`${index}-${capture.screenshot.substring(0, 20)}`}
+                    key={`${index}}`}
                     ref={index === captures.length - 1 ? lastCaptureRef : null}
                   >
                     <ResponsiveScreenshotItem
