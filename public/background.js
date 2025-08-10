@@ -105,9 +105,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (
     changeInfo.status === "complete" &&
     tab.url &&
-    (tab.url.includes("localhost:3000/auth/success") ||
-      tab.url.includes("localhost:3000/login") ||
-      tab.url.includes("localhost:3000/logout"))
+    (tab.url.includes(
+      "https://stepture-backend.eastus.cloudapp.azure.com/auth/success"
+    ) ||
+      tab.url.includes(
+        "https://stepture-backend.eastus.cloudapp.azure.com/login"
+      ) ||
+      tab.url.includes(
+        "https://stepture-backend.eastus.cloudapp.azure.com/logout"
+      ))
   ) {
     await checkAuthStatus();
   }
@@ -281,14 +287,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // frontend requests data
     case "get_data":
-      checkUploadedStatus(); // Check for pending uploads before sending data
-      chrome.storage.local.get({ captures: [] }, (data) => {
-        sendResponse({
-          success: true,
-          data: data.captures,
-          isCapturing: isCapturing,
+      checkUploadedStatus().then(() => {
+        chrome.storage.local.get({ captures: [] }, (data) => {
+          sendResponse({
+            success: true,
+            data: data.captures,
+            isCapturing: isCapturing,
+          });
         });
       });
+
       return true;
 
     case "clear_data":
@@ -322,10 +330,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Helper function to check authentication status
 async function checkAuthStatus() {
   try {
-    const response = await fetch("http://localhost:8000/auth/me", {
-      method: "GET",
-      credentials: "include",
-    });
+    const response = await fetch(
+      "https://stepture-backend.eastus.cloudapp.azure.com/api/auth/me",
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
     const data = await response.json();
     chrome.runtime.sendMessage({
       type: "CHECK_AUTH_STATUS",
@@ -364,7 +375,7 @@ async function uploadInBackground(captureData) {
     formData.append("file", blob, "screenshot.png");
 
     const response = await fetch(
-      "http://localhost:8000/google-drive/upload-image",
+      "https://stepture-backend.eastus.cloudapp.azure.com/api/google-drive/upload-image",
       {
         method: "POST",
         body: formData,
