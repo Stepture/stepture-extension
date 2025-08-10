@@ -281,14 +281,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // frontend requests data
     case "get_data":
-      checkUploadedStatus(); // Check for pending uploads before sending data
-      chrome.storage.local.get({ captures: [] }, (data) => {
-        sendResponse({
-          success: true,
-          data: data.captures,
-          isCapturing: isCapturing,
+      checkUploadedStatus().then(() => {
+        chrome.storage.local.get({ captures: [] }, (data) => {
+          sendResponse({
+            success: true,
+            data: data.captures,
+            isCapturing: isCapturing,
+          });
         });
       });
+
       return true;
 
     case "clear_data":

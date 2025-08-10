@@ -247,56 +247,46 @@ const ResponsiveScreenshotItem = ({
         {info && (
           <div className="space-y-1">
             <p>
-              {img ? (
-                <span className="font-medium">Click: </span>
-              ) : (
-                <span className="font-medium">Navigate to: </span>
-              )}
-
+              <span className="font-medium">Click:</span>{" "}
               <span className="text-slate-600">
-                {info.textContent && img ? (
+                {info.textContent && (
                   <span className="text-slate-800">"{info.textContent}"</span>
-                ) : (
-                  <span className="text-blue-800 underline">
-                    {info.textContent}
-                  </span>
                 )}
               </span>
             </p>
           </div>
         )}
       </div>
-      {img && (
-        <div className="relative w-full">
-          <img
-            ref={imgRef}
-            src={img}
-            alt={`Screenshot ${index + 1}`}
-            className="screenshot-img w-full rounded-md block"
-            loading="lazy"
-            onLoad={handleImageLoad}
-            onError={() =>
-              console.error(`Failed to load image for step ${index + 1}`)
-            }
-          />
 
-          {info?.coordinates &&
-            imageDimensions.width > 0 &&
-            containerWidth > 0 && (
-              <div
-                className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
-                style={{
-                  ...getResponsivePosition(),
-                  width: `${getIndicatorSize()}px`,
-                  height: `${getIndicatorSize()}px`,
-                }}
-                aria-label={`Click indicator for step ${index + 1}`}
-              >
-                <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
-              </div>
-            )}
-        </div>
-      )}
+      <div className="relative w-full">
+        <img
+          ref={imgRef}
+          src={img}
+          alt={`Screenshot ${index + 1}`}
+          className="screenshot-img w-full rounded-md block"
+          loading="lazy"
+          onLoad={handleImageLoad}
+          onError={() =>
+            console.error(`Failed to load image for step ${index + 1}`)
+          }
+        />
+
+        {info?.coordinates &&
+          imageDimensions.width > 0 &&
+          containerWidth > 0 && (
+            <div
+              className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
+              style={{
+                ...getResponsivePosition(),
+                width: `${getIndicatorSize()}px`,
+                height: `${getIndicatorSize()}px`,
+              }}
+              aria-label={`Click indicator for step ${index + 1}`}
+            >
+              <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
+            </div>
+          )}
+      </div>
     </div>
   );
 };
@@ -356,7 +346,6 @@ const Home = ({ name }: { name: string }) => {
       case "screenshot_captured":
         // When there is a new screenshot captured.
         // we only add it to the captures state
-
         if (message.message) {
           const newCapture: CaptureData = {
             tab: message.message?.tab,
@@ -364,6 +353,8 @@ const Home = ({ name }: { name: string }) => {
             info: message.message?.info,
             imgId: message.message?.imgId,
           };
+          // console.log("New screenshot captured:", newCapture);
+          // console.log(captures);
           setCaptures((prev) => [...prev, newCapture]);
         }
         break;
@@ -403,7 +394,6 @@ const Home = ({ name }: { name: string }) => {
         if (response.success) {
           setCaptures(response.data || []);
           setIsCaptured(response.isCapturing || false);
-          return response.data || [];
         } else {
           throw new Error(response.error || "Failed to load data");
         }
@@ -489,40 +479,35 @@ const Home = ({ name }: { name: string }) => {
       "stopCapture",
       async () => {
         setIsCaptured(false);
-        const stepstoSave = await loadData(true);
         try {
-          const steps = (stepstoSave || []).map((capture, idx) => ({
+          const steps = captures.map((capture, idx) => ({
             stepDescription: capture.info.textContent
-              ? `${capture.info.textContent}`
+              ? `Click: ${capture.info.textContent}`
               : `Step ${idx + 1}`,
             type: "STEP",
             stepNumber: idx + 1,
-
-            screenshot: capture?.screenshot
+            screenshot: capture.screenshot
               ? {
                   googleImageId: capture.imgId,
                   url: capture.screenshot,
-                  viewportX: capture.info.coordinates.viewport.x,
-                  viewportY: capture.info.coordinates.viewport.y,
+                  viewportX: capture.info.coordinates.viewport.x || 0,
+                  viewportY: capture.info.coordinates.viewport.y || 0,
                   viewportWidth:
-                    capture.info.captureContext?.viewportWidth || 1541,
+                    capture.info.captureContext?.viewportWidth || 0,
                   viewportHeight:
-                    capture.info.captureContext?.viewportHeight || 958,
+                    capture.info.captureContext?.viewportHeight || 0,
                   devicePixelRatio:
                     capture.info.captureContext?.devicePixelRatio || 1,
                 }
               : undefined,
           }));
-
-          const datatosave = {
-            title: "My Document" + new Date().toLocaleDateString(),
+          const data = await api.protected.createDocument({
+            title: "My Document",
             description: "Created from Stepture Extension",
             steps,
-          };
-
-          const data = await api.protected.createDocument(datatosave);
-
+          });
           if (data && data.id) {
+            console.log("Document created successfully:", data);
             setTimeout(() => loadData(true), 500);
             handleClearData();
             window.open(
@@ -614,10 +599,10 @@ const Home = ({ name }: { name: string }) => {
             <div className="screenshots grid gap-4">
               {loading && captures.length === 0 ? (
                 <p className="text-center text-gray-500">Loading...</p>
-              ) : captures?.length > 0 ? (
-                captures?.map((capture, index) => (
+              ) : captures.length > 0 ? (
+                captures.map((capture, index) => (
                   <div
-                    key={`${index}-${capture?.screenshot?.substring(0, 20)}`}
+                    key={`${index}}`}
                     ref={index === captures.length - 1 ? lastCaptureRef : null}
                   >
                     <ResponsiveScreenshotItem
