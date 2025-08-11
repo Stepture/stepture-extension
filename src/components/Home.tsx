@@ -2,6 +2,10 @@ import Button from "./Button";
 import { stepture } from "../constants/images";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../libs/axios";
+import {
+  LoadingSkeleton,
+  DocumentCreationLoading,
+} from "./LoadingCreateDocument";
 
 interface CaptureData {
   tab: any; // or specify the type if you use it
@@ -291,19 +295,6 @@ const ResponsiveScreenshotItem = ({
   );
 };
 
-// Loading skeleton component
-const LoadingSkeleton = () => (
-  <div className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1">
-    <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
-      <p className="text-xs text-blue">Loading new step...</p>
-    </div>
-    <div className="text-start p-2 text-base text-slate-800">
-      <p className="text-gray-500">New step is being captured...</p>
-    </div>
-    <div className="w-full h-48 bg-gray-200 animate-pulse rounded-md"></div>
-  </div>
-);
-
 // Error display component
 const ErrorDisplay = ({
   error,
@@ -331,6 +322,7 @@ const Home = ({ name }: { name: string }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newScreenshotLoading, setNewScreenshotLoading] = useState(false);
+  const [documentLoading, setDocumentLoading] = useState(false);
 
   const loadingRef = useRef(false);
   const lastCaptureRef = useRef<HTMLDivElement | null>(null);
@@ -394,6 +386,7 @@ const Home = ({ name }: { name: string }) => {
         if (response.success) {
           setCaptures(response.data || []);
           setIsCaptured(response.isCapturing || false);
+          return response.data || [];
         } else {
           throw new Error(response.error || "Failed to load data");
         }
@@ -407,6 +400,7 @@ const Home = ({ name }: { name: string }) => {
                 return;
               }
               setCaptures(data.captures || []);
+              return data.captures || [];
             });
           }
         } catch (storageError) {}
@@ -473,41 +467,61 @@ const Home = ({ name }: { name: string }) => {
     );
   }, [handleCaptureAction]);
 
+  const handleConvertSteps = async (stepsToCapture: CaptureData[]) => {
+    console.log("coverting steps ", stepsToCapture);
+    console.log("Converting steps to document format...");
+    const steps = (stepsToCapture || []).map((capture, idx) => ({
+      stepDescription: capture.info.textContent
+        ? `${capture.info.textContent}`
+        : ``,
+      type: "STEP",
+      stepNumber: idx + 1,
+
+      screenshot: capture?.screenshot
+        ? {
+            googleImageId: capture.imgId,
+            url: capture.screenshot,
+            viewportX: capture.info.coordinates.viewport.x,
+            viewportY: capture.info.coordinates.viewport.y,
+            viewportWidth: capture.info.captureContext?.viewportWidth || 1541,
+            viewportHeight: capture.info.captureContext?.viewportHeight || 958,
+            devicePixelRatio:
+              capture.info.captureContext?.devicePixelRatio || 1,
+          }
+        : undefined,
+    }));
+    console.log("Converted steps:", steps);
+    return steps; // Added missing return statement
+  };
+
   // Handle stop capture
   const handleStopCapture = useCallback(() => {
     handleCaptureAction(
       "stopCapture",
       async () => {
         setIsCaptured(false);
+        setDocumentLoading(true); // Start loading when document creation begins
+
         try {
-          const steps = captures.map((capture, idx) => ({
-            stepDescription: capture.info.textContent
-              ? `Click: ${capture.info.textContent}`
-              : `Step ${idx + 1}`,
-            type: "STEP",
-            stepNumber: idx + 1,
-            screenshot: capture.screenshot
-              ? {
-                  googleImageId: capture.imgId,
-                  url: capture.screenshot,
-                  viewportX: capture.info.coordinates.viewport.x || 0,
-                  viewportY: capture.info.coordinates.viewport.y || 0,
-                  viewportWidth:
-                    capture.info.captureContext?.viewportWidth || 0,
-                  viewportHeight:
-                    capture.info.captureContext?.viewportHeight || 0,
-                  devicePixelRatio:
-                    capture.info.captureContext?.devicePixelRatio || 1,
-                }
-              : undefined,
-          }));
-          const data = await api.protected.createDocument({
-            title: "My Document",
+          // Load data first and wait for it to complete
+          const stepsToCapture = (await loadData(
+            true
+          )) as unknown as CaptureData[];
+
+          console.log("Steps to convert:", stepsToCapture);
+
+          const steps = await handleConvertSteps(stepsToCapture);
+          console.log("Steps to save:", steps);
+
+          const datatosave = {
+            title: "My Document" + new Date().toLocaleDateString(),
             description: "Created from Stepture Extension",
             steps,
-          });
+          };
+
+          const data = await api.protected.createDocument(datatosave);
+
           if (data && data.id) {
-            console.log("Document created successfully:", data);
             setTimeout(() => loadData(true), 500);
             handleClearData();
             window.open(
@@ -519,6 +533,9 @@ const Home = ({ name }: { name: string }) => {
           }
         } catch (err) {
           console.error("Failed to create document:", err);
+          setError("Failed to create document. Please try again.");
+        } finally {
+          setDocumentLoading(false); // Stop loading when done
         }
       },
       "Failed to stop capture. Please try again."
@@ -569,6 +586,9 @@ const Home = ({ name }: { name: string }) => {
 
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
+      {/* Document Creation Loading Overlay */}
+      {documentLoading && <DocumentCreationLoading />}
+
       {/* Error display */}
       {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
 
@@ -583,7 +603,7 @@ const Home = ({ name }: { name: string }) => {
             onClick={handleStartCapture}
             color="primary"
             text={loading ? "Starting..." : "Start Capture"}
-            disabled={loading}
+            disabled={loading || documentLoading}
           />
 
           {/* Show existing screenshots count */}
@@ -641,21 +661,21 @@ const Home = ({ name }: { name: string }) => {
                 onClick={handleClearData}
                 color="secondary"
                 text="Delete"
-                disabled={loading}
+                disabled={loading || documentLoading}
               />
               {!isPaused ? (
                 <Button
                   onClick={handlePauseCapture}
                   color="secondary"
                   text="Pause"
-                  disabled={loading}
+                  disabled={loading || documentLoading}
                 />
               ) : (
                 <Button
                   onClick={handleResumeCapture}
                   color="secondary"
                   text="Resume"
-                  disabled={loading}
+                  disabled={loading || documentLoading}
                 />
               )}
             </div>
@@ -663,8 +683,14 @@ const Home = ({ name }: { name: string }) => {
               <Button
                 onClick={handleStopCapture}
                 color="primary"
-                text={loading ? "Stopping..." : "Stop Capture"}
-                disabled={loading}
+                text={
+                  documentLoading
+                    ? "Creating Document..."
+                    : loading
+                    ? "Stopping..."
+                    : "Stop Capture"
+                }
+                disabled={loading || documentLoading}
               />
             </div>
           </div>
@@ -674,13 +700,17 @@ const Home = ({ name }: { name: string }) => {
       {!isCaptured && (
         <>
           <hr className="border-gray-300 w-full my-8" />
-          <Button color="secondary" text="View your docs" />
+          <Button
+            color="secondary"
+            text="View your docs"
+            disabled={documentLoading}
+          />
           {captures.length > 0 && (
             <Button
               onClick={handleClearData}
               color="secondary"
               text="Clear All Data"
-              disabled={loading}
+              disabled={loading || documentLoading}
             />
           )}
         </>
