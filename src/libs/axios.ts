@@ -34,7 +34,7 @@ const refreshApi = axios.create({
 
 const privateApi = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 50000, // to solve the issues with transaction request timeouts
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
