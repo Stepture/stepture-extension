@@ -12,6 +12,7 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
     isCapturing = message.isCapturing;
+    showCaptureIndicator();
   }
 });
 
