@@ -9,6 +9,57 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
   }
 });
 
+function showCaptureIndicator() {
+  const existingIndicator = document.getElementById(
+    "stepture-capture-indicator"
+  );
+  if (existingIndicator) {
+    existingIndicator.remove();
+  }
+
+  if (isCapturing) {
+    const overlay = document.createElement("div");
+    overlay.id = "stepture-capture-overlay";
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(128, 128, 128, 0.5);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      z-index: 9999;
+      pointer-events: none;
+    `;
+
+    const indicator = document.createElement("div");
+    indicator.id = "stepture-capture-indicator";
+    indicator.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      z-index: 10000;
+      font-size: 32px;
+      font-family: Arial, sans-serif;
+    `;
+    indicator.textContent = "Started Capturing this page ...";
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(indicator);
+
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      if (indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator);
+      }
+    }, 1500);
+  }
+}
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
     isCapturing = message.isCapturing;
