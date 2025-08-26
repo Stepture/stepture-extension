@@ -105,11 +105,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (
     changeInfo.status === "complete" &&
     tab.url &&
-    (tab.url.includes(
-      "https://stepture.eastus.cloudapp.azure.com/auth/success"
-    ) ||
-      tab.url.includes("https://stepture.eastus.cloudapp.azure.com/login") ||
-      tab.url.includes("https://stepture.eastus.cloudapp.azure.com/logout"))
+    (tab.url.includes("https://stepture.app/auth/success") ||
+      tab.url.includes("https://stepture.app/login") ||
+      tab.url.includes("https://stepture.app/logout"))
   ) {
     await checkAuthStatus();
   }
@@ -326,13 +324,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Helper function to check authentication status
 async function checkAuthStatus() {
   try {
-    const response = await fetch(
-      "https://stepture.eastus.cloudapp.azure.com/api/auth/me",
-      {
-        method: "GET",
-        credentials: "include",
-      }
-    );
+    const response = await fetch("https://stepture.app/api/auth/me", {
+      method: "GET",
+      credentials: "include",
+    });
     const data = await response.json();
     chrome.runtime.sendMessage({
       type: "CHECK_AUTH_STATUS",
@@ -371,7 +366,7 @@ async function uploadInBackground(captureData) {
     formData.append("file", blob, "screenshot.png");
 
     const response = await fetch(
-      "https://stepture.eastus.cloudapp.azure.com/api/google-drive/upload-image",
+      "https://stepture.app/api/google-drive/upload-image",
       {
         method: "POST",
         body: formData,
