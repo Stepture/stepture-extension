@@ -8,7 +8,6 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
     isCapturing = true;
   }
 });
-
 function showCaptureIndicator() {
   const existingIndicator = document.getElementById(
     "stepture-capture-indicator"
@@ -42,10 +41,105 @@ function showCaptureIndicator() {
       transform: translate(-50%, -50%);
       color: white;
       z-index: 10000;
-      font-size: 32px;
+      font-size: 18px;
       font-family: Arial, sans-serif;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      max-width: 500px;
     `;
-    indicator.textContent = "Started Capturing this page ...";
+
+    // Create click icon container with pulse animation
+    const clickIcon = document.createElement("div");
+    clickIcon.style.cssText = `
+      width: 40px;
+      height: 40px;
+      position: relative;
+      animation: pulse 1.5s infinite;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const icon = document.createElement("div");
+    icon.style.cssText = `
+      width: 32px;
+      height: 32px;
+      background: white;
+      border-radius: 50%;
+      position: relative;
+      cursor: pointer;
+      display: block;
+    `;
+
+    icon.innerHTML = `
+      <div style="
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 8px;
+        background: black;
+        border-radius: 50%;
+      "></div>
+      <div style="
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 0;
+        height: 0;
+        border-left: 12px solid #8EACFE;
+        border-top: 8px solid transparent;
+        border-bottom: 8px solid transparent;
+      "></div>
+    `;
+
+    clickIcon.appendChild(icon);
+
+    const textElement = document.createElement("div");
+    textElement.textContent =
+      "Screenshot and annotation will be captured when you click anywhere on the screen";
+    textElement.style.cssText = `
+      line-height: 1.4;
+      font-weight: 500;
+    `;
+
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const timerCountdown = document.createElement("div");
+    timerCountdown.style.cssText = `
+      margin-top: 10px;
+      font-size: 14px;
+      color: #ccc;
+    `;
+    let countdown = 3;
+    timerCountdown.textContent = `Starting in ${countdown}s ...`;
+    const countdownInterval = setInterval(() => {
+      countdown -= 1;
+      if (countdown > 0) {
+        timerCountdown.textContent = `Starting in ${countdown}s ...`;
+      } else {
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
+    indicator.appendChild(timerCountdown);
+
+    indicator.appendChild(clickIcon);
+    indicator.appendChild(textElement);
 
     document.body.appendChild(overlay);
     document.body.appendChild(indicator);
@@ -57,7 +151,7 @@ function showCaptureIndicator() {
       if (indicator.parentNode) {
         indicator.parentNode.removeChild(indicator);
       }
-    }, 1500);
+    }, 3500);
   }
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
