@@ -2,12 +2,15 @@ let isCapturing = false;
 let lastClickTime = 0;
 const CLICK_DEBOUNCE = 500; // Prevent rapid clicks
 
-// Check capture status on load
+// Check capture status on load and show indicator if needed
 chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
   if (response && response.isCapturing) {
     isCapturing = true;
+    // Show the indicator when the script loads on a page where capturing is active
+    showCaptureIndicator("navigation");
   }
 });
+
 function showCaptureIndicator(messageType) {
   const existingIndicator = document.getElementById(
     "stepture-capture-indicator"
@@ -126,24 +129,52 @@ function showCaptureIndicator(messageType) {
       font-size: 14px;
       color: #ccc;
     `;
+
     let countdown = 3;
-    timerCountdown.textContent =
-      messageType === "startCapture"
-        ? `Starting in ${countdown}s ...`
-        : `Resuming in ${countdown}s ...`;
+    let countdownText = "";
+
+    // Different messages based on the action type
+    switch (messageType) {
+      case "startCapture":
+        countdownText = `Starting in ${countdown}s ...`;
+        break;
+      case "resumeCapture":
+        countdownText = `Resuming in ${countdown}s ...`;
+        break;
+      case "navigation":
+      case "tabActivated":
+        countdownText = `Capture active - Ready in ${countdown}s ...`;
+        break;
+      default:
+        countdownText = `Ready in ${countdown}s ...`;
+    }
+
+    timerCountdown.textContent = countdownText;
+
     const countdownInterval = setInterval(() => {
       countdown -= 1;
       if (countdown > 0) {
-        timerCountdown.textContent =
-          messageType === "startCapture"
-            ? `Starting in ${countdown}s ...`
-            : `Resuming in ${countdown}s ...`;
+        switch (messageType) {
+          case "startCapture":
+            timerCountdown.textContent = `Starting in ${countdown}s ...`;
+            break;
+          case "resumeCapture":
+            timerCountdown.textContent = `Resuming in ${countdown}s ...`;
+            break;
+          case "navigation":
+          case "tabActivated":
+            timerCountdown.textContent = `Capture active - Ready in ${countdown}s ...`;
+            break;
+          default:
+            timerCountdown.textContent = `Ready in ${countdown}s ...`;
+        }
       } else {
         clearInterval(countdownInterval);
+        timerCountdown.textContent = "Ready to capture clicks!";
       }
     }, 1000);
-    indicator.appendChild(timerCountdown);
 
+    indicator.appendChild(timerCountdown);
     indicator.appendChild(clickIcon);
     indicator.appendChild(textElement);
 
@@ -205,8 +236,14 @@ function showCaptureIndicator(messageType) {
     }
   }
 }
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
+    console.log(
+      "Capture status changed:",
+      message.isCapturing,
+      message.actionType
+    );
     isCapturing = message.isCapturing;
     showCaptureIndicator(message.actionType);
   }
