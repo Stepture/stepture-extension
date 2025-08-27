@@ -17,11 +17,10 @@ export const Login: React.FC = () => {
         className="w-20 h-20 mb-4"
       />
       <h2 className="text-xl font-bold text-blue mb-2">Welcome to Stepture</h2>
-      <p className="text-gray text-sm mb-6">Sign in to continue</p>
 
       <Button
         color="google"
-        text="Sign in with Google"
+        text="Sign in to continue"
         onClick={loginWithGoogle}
       />
     </div>

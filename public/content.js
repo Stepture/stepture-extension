@@ -2,14 +2,16 @@ let isCapturing = false;
 let lastClickTime = 0;
 const CLICK_DEBOUNCE = 500; // Prevent rapid clicks
 
-// Check capture status on load
+// Check capture status on load and show indicator if needed
 chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
   if (response && response.isCapturing) {
     isCapturing = true;
+    // Show the indicator when the script loads on a page where capturing is active
+    showCaptureIndicator("navigation");
   }
 });
 
-function showCaptureIndicator() {
+function showCaptureIndicator(messageType) {
   const existingIndicator = document.getElementById(
     "stepture-capture-indicator"
   );
@@ -42,10 +44,139 @@ function showCaptureIndicator() {
       transform: translate(-50%, -50%);
       color: white;
       z-index: 10000;
-      font-size: 32px;
+      font-size: 18px;
       font-family: Arial, sans-serif;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      max-width: 500px;
     `;
-    indicator.textContent = "Started Capturing this page ...";
+
+    // Create click icon container with pulse animation
+    const clickIcon = document.createElement("div");
+    clickIcon.style.cssText = `
+      width: 40px;
+      height: 40px;
+      position: relative;
+      animation: pulse 1.5s infinite;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const icon = document.createElement("div");
+    icon.style.cssText = `
+      width: 32px;
+      height: 32px;
+      background: white;
+      border-radius: 50%;
+      position: relative;
+      cursor: pointer;
+      display: block;
+    `;
+
+    icon.innerHTML = `
+      <div style="
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 8px;
+        background: black;
+        border-radius: 50%;
+      "></div>
+      <div style="
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 0;
+        height: 0;
+        border-left: 12px solid #8EACFE;
+        border-top: 8px solid transparent;
+        border-bottom: 8px solid transparent;
+      "></div>
+    `;
+
+    clickIcon.appendChild(icon);
+
+    const textElement = document.createElement("div");
+    textElement.textContent =
+      "Screenshot and annotation will be captured when you click anywhere on the screen";
+    textElement.style.cssText = `
+      line-height: 1.4;
+      font-weight: 500;
+    `;
+
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const timerCountdown = document.createElement("div");
+    timerCountdown.style.cssText = `
+      margin-top: 10px;
+      font-size: 14px;
+      color: #ccc;
+    `;
+
+    let countdown = 3;
+    let countdownText = "";
+
+    // Different messages based on the action type
+    switch (messageType) {
+      case "startCapture":
+        countdownText = `Starting in ${countdown}s ...`;
+        break;
+      case "resumeCapture":
+        countdownText = `Resuming in ${countdown}s ...`;
+        break;
+      case "navigation":
+      case "tabActivated":
+        countdownText = `Capture active - Ready in ${countdown}s ...`;
+        break;
+      default:
+        countdownText = `Ready in ${countdown}s ...`;
+    }
+
+    timerCountdown.textContent = countdownText;
+
+    const countdownInterval = setInterval(() => {
+      countdown -= 1;
+      if (countdown > 0) {
+        switch (messageType) {
+          case "startCapture":
+            timerCountdown.textContent = `Starting in ${countdown}s ...`;
+            break;
+          case "resumeCapture":
+            timerCountdown.textContent = `Resuming in ${countdown}s ...`;
+            break;
+          case "navigation":
+          case "tabActivated":
+            timerCountdown.textContent = `Capture active - Ready in ${countdown}s ...`;
+            break;
+          default:
+            timerCountdown.textContent = `Ready in ${countdown}s ...`;
+        }
+      } else {
+        clearInterval(countdownInterval);
+        timerCountdown.textContent = "Ready to capture clicks!";
+      }
+    }, 1000);
+
+    indicator.appendChild(timerCountdown);
+    indicator.appendChild(clickIcon);
+    indicator.appendChild(textElement);
 
     document.body.appendChild(overlay);
     document.body.appendChild(indicator);
@@ -57,13 +188,59 @@ function showCaptureIndicator() {
       if (indicator.parentNode) {
         indicator.parentNode.removeChild(indicator);
       }
-    }, 1500);
+    }, 3500);
+  } else {
+    // Remove overlay and indicator if they exist
+    if (messageType === "pauseCapture" || messageType === "stopCapture") {
+      isCapturing = false;
+
+      // show a brief paused message
+      const pausedIndicator = document.createElement("div");
+      pausedIndicator.id = "stepture-capture-indicator";
+      pausedIndicator.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        z-index: 10000;
+        font-size: 18px;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 10px;
+        max-width: 300px;
+      `;
+      const pausedText = document.createElement("div");
+      pausedText.textContent =
+        messageType === "pauseCapture" ? "Capture Paused" : "Capture Stopped";
+      pausedText.style.cssText = `
+        line-height: 1.4;
+        font-weight: 500;
+      `;
+      pausedIndicator.appendChild(pausedText);
+      document.body.appendChild(pausedIndicator);
+      setTimeout(() => {
+        const existingPausedIndicator = document.getElementById(
+          "stepture-capture-indicator"
+        );
+        if (existingPausedIndicator) {
+          existingPausedIndicator.remove();
+        }
+      }, 2000);
+    }
   }
 }
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
     isCapturing = message.isCapturing;
-    showCaptureIndicator();
+    showCaptureIndicator(message.actionType);
   }
 });
 

@@ -241,13 +241,13 @@ const ResponsiveScreenshotItem = ({
   return (
     <div
       ref={containerRef}
-      className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
+      className="max-w-full border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
     >
       <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
         <p className="text-xs text-blue">Step {index + 1}</p>
       </div>
 
-      <div className="text-start p-2 text-base text-slate-800">
+      <div className=" max-w-[150px] text-start p-2 text-base text-slate-800">
         {info && (
           <div className="space-y-1">
             <p>
@@ -262,7 +262,7 @@ const ResponsiveScreenshotItem = ({
         )}
       </div>
 
-      <div className="relative w-full">
+      <div className="relative max-w-full">
         <img
           ref={imgRef}
           src={img}
@@ -302,18 +302,30 @@ const ErrorDisplay = ({
 }: {
   error: string;
   onDismiss: () => void;
-}) => (
-  <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-    {error}
-    <button
-      onClick={onDismiss}
-      className="ml-2 text-red-500 hover:text-red-700"
-      aria-label="Dismiss error"
-    >
-      ×
-    </button>
-  </div>
-);
+}) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onDismiss();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-500 rounded">
+      <p>{error}</p>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={onDismiss}
+        className="ml-2 text-red-500 hover:text-red-700 bg-inherit"
+        aria-label="Dismiss error"
+      >
+        ×
+      </span>
+    </div>
+  );
+};
 
 const Home = ({ name }: { name: string }) => {
   const [isCaptured, setIsCaptured] = useState(false);
@@ -442,6 +454,7 @@ const Home = ({ name }: { name: string }) => {
 
   // Handle start capture
   const handleStartCapture = useCallback(() => {
+    setIsPaused(false);
     handleCaptureAction(
       "startCapture",
       () => setIsCaptured(true),
@@ -496,6 +509,13 @@ const Home = ({ name }: { name: string }) => {
 
   // Handle stop capture
   const handleStopCapture = useCallback(() => {
+    setIsPaused(false);
+    if (captures.length === 0) {
+      setError(
+        "There is no steps captured yet. Please capture some steps to create a document."
+      );
+      return;
+    }
     handleCaptureAction(
       "stopCapture",
       async () => {
@@ -523,7 +543,7 @@ const Home = ({ name }: { name: string }) => {
 
           if (data && data.id) {
             setTimeout(() => loadData(true), 500);
-            handleClearData();
+            handleClearData("stop");
             window.open(
               `${import.meta.env.VITE_FRONTEND_URL}/document/${data.id}`,
               "_blank"
@@ -543,22 +563,34 @@ const Home = ({ name }: { name: string }) => {
   }, [handleCaptureAction, loadData, captures]);
 
   // Handle clear data
-  const handleClearData = useCallback(async () => {
-    //  if (!confirm("Are you sure you want to clear all captured data?")) return;
-    setLoading(true);
-    try {
-      const response = await sendChromeMessage({ action: "clear_data" });
-      if (response.success) {
-        setCaptures([]);
-      } else {
-        throw new Error("Failed to clear data");
+  const handleClearData = useCallback(
+    async (action: string) => {
+      const clearConfirmed = async () => {
+        setLoading(true);
+        try {
+          const response = await sendChromeMessage({ action: "clear_data" });
+          if (response.success) {
+            setCaptures([]);
+          } else {
+            throw new Error("Failed to clear data");
+          }
+        } catch (error) {
+          setError("Failed to clear data. Please try again.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (action === "stop") {
+        await clearConfirmed();
+      } else if (!confirm("Are you sure you want to clear all captured data?"))
+        return;
+      else {
+        await clearConfirmed();
       }
-    } catch (error) {
-      setError("Failed to clear data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [sendChromeMessage]);
+    },
+    [sendChromeMessage]
+  );
 
   // Set up message listeners
   useEffect(() => {
@@ -583,6 +615,17 @@ const Home = ({ name }: { name: string }) => {
       lastCaptureRef.current.scrollTop += 100; // Adjust scroll position to ensure visibility
     }
   }, [captures.length]);
+
+  const handleCancelCapture = useCallback(() => {
+    handleCaptureAction(
+      "stopCapture",
+      () => {
+        setIsCaptured(false);
+        handleClearData("stop");
+      },
+      "Failed to cancel capture. Please try again."
+    );
+  }, [handleCaptureAction, handleClearData]);
 
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
@@ -633,10 +676,18 @@ const Home = ({ name }: { name: string }) => {
                   </div>
                 ))
               ) : (
-                <p className="text-center text-gray-500">
-                  No screenshots captured yet. Click on elements to start
-                  capturing!
-                </p>
+                <>
+                  <p className="text-center text-gray-500">
+                    No screenshots captured yet. Click on the screen to start
+                    capturing!
+                  </p>
+                  <button
+                    onClick={handleCancelCapture}
+                    className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  >
+                    Cancel Capture
+                  </button>
+                </>
               )}
               {newScreenshotLoading && <LoadingSkeleton />}
             </div>
@@ -658,7 +709,7 @@ const Home = ({ name }: { name: string }) => {
             </div>
             <div className="mt-4 flex justify-between items-center w-full">
               <Button
-                onClick={handleClearData}
+                onClick={() => handleClearData("clear")}
                 color="secondary"
                 text="Delete"
                 disabled={loading || documentLoading}
@@ -704,10 +755,16 @@ const Home = ({ name }: { name: string }) => {
             color="secondary"
             text="View your docs"
             disabled={documentLoading}
+            onClick={() =>
+              window.open(
+                `${import.meta.env.VITE_FRONTEND_URL}/dashboard/created`,
+                "_blank"
+              )
+            }
           />
           {captures.length > 0 && (
             <Button
-              onClick={handleClearData}
+              onClick={() => handleClearData("clear")}
               color="secondary"
               text="Clear All Data"
               disabled={loading || documentLoading}

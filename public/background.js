@@ -18,7 +18,7 @@ chrome.sidePanel
 // API : chrome.scripting
 // Purpose : The Scripting API allows extensions to inject scripts into web pages
 // Permission : "scripting" permission
-const injectContentScript = async (tabId, tabUrl) => {
+const injectContentScript = async (tabId, tabUrl, action) => {
   if (!isCapturing) {
     return false;
   }
@@ -48,6 +48,7 @@ const injectContentScript = async (tabId, tabUrl) => {
       await chrome.tabs.sendMessage(tabId, {
         action: "capture_status_changed",
         isCapturing: true,
+        actionType: action || "startCapture",
       });
     }
 
@@ -59,13 +60,14 @@ const injectContentScript = async (tabId, tabUrl) => {
   }
 };
 
-const disableContentScript = async (tabId) => {
+const disableContentScript = async (tabId, actionType) => {
   if (!tabId) return false;
 
   try {
     await chrome.tabs.sendMessage(tabId, {
       action: "capture_status_changed",
       isCapturing: false,
+      actionType: actionType,
     });
     console.log(`Content script disabled in tab ${tabId}`);
     return true;
@@ -111,6 +113,25 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   ) {
     await checkAuthStatus();
   }
+
+  // Handle URL changes and page loads for the active tab
+  if (changeInfo.status === "complete" && tabId === activeTabId) {
+    // Reset the recorded flag for the active tab when URL changes
+    activeTabisRecorded = false;
+
+    // Update the stored URL
+    activeTabUrl = tab.url;
+
+    // Re-inject content script if capturing (for URL changes, redirects, etc.)
+    if (isCapturing) {
+      const injected = await injectContentScript(tabId, tab.url, "navigation");
+      if (injected) {
+        console.log(
+          `Content script re-injected after navigation in tab ${tabId}`
+        );
+      }
+    }
+  }
 });
 
 // API : chrome.tabs.onActivated
@@ -122,7 +143,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
   // Disable content script in the previously active tab
   if (previousTabId && previousTabId !== activeInfo.tabId) {
-    await disableContentScript(previousTabId);
+    await disableContentScript(previousTabId, "tabSwitch");
     console.log(`Content script disabled in previous tab ${previousTabId}`);
   }
 
@@ -131,22 +152,23 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const activeTab = await chrome.tabs.get(activeInfo.tabId);
     activeTabUrl = activeTab.url; // Store the active tab URL
+
+    // Inject content script into the newly activated tab if capturing
+    if (isCapturing) {
+      const injected = await injectContentScript(
+        activeTab.id,
+        activeTab.url,
+        "tabActivated"
+      );
+      if (injected) {
+        console.log(
+          `Content script injected into new active tab ${activeTab.id}`
+        );
+      }
+    }
   } catch (error) {
     console.error(`Failed to get tab info for ${activeInfo.tabId}:`, error);
     activeTabUrl = null; // Reset URL if tab info cannot be retrieved
-  }
-
-  // Inject content script into the newly activated tab if capturing
-  if (isCapturing) {
-    try {
-      const tab = await chrome.tabs.get(activeInfo.tabId);
-      const injected = await injectContentScript(tab.id, tab.url);
-      if (injected) {
-        console.log(`Content script injected into new active tab ${tab.id}`);
-      }
-    } catch (error) {
-      console.error(`Failed to get tab info for ${activeInfo.tabId}:`, error);
-    }
   }
 });
 
@@ -162,15 +184,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const activeTab = tabs[0];
           activeTabId = activeTab.id; // Update the active tab ID
           activeTabUrl = activeTab.url; // Store the active tab URL
-          injectContentScript(activeTab.id, activeTab.url);
+          injectContentScript(activeTab.id, activeTab.url, "startCapture");
         } else {
           console.warn("No active tab found to inject content script.");
         }
-      });
-
-      chrome.tabs.sendMessage(activeTabId, {
-        action: "capture_status_changed",
-        isCapturing: isCapturing,
       });
 
       sendResponse({ success: true, isCapturing: true });
@@ -180,7 +197,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       isCapturing = false;
 
       if (activeTabId) {
-        disableContentScript(activeTabId);
+        disableContentScript(activeTabId, "stopCapture");
         activeTabId = null;
       }
 
@@ -191,7 +208,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       isCapturing = false;
 
       if (activeTabId) {
-        disableContentScript(activeTabId);
+        disableContentScript(activeTabId, "pauseCapture");
         activeTabId = null;
       }
 
@@ -203,8 +220,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (activeTabId) {
         try {
-          const tab = chrome.tabs.get(activeTabId);
-          injectContentScript(activeTabId, tab.url);
+          chrome.tabs.get(activeTabId).then(async (tab) => {
+            await injectContentScript(activeTabId, tab.url, "resumeCapture");
+          });
         } catch (error) {
           console.error("Failed to resume capture:", error);
           // Fallback: query current active tab
@@ -213,8 +231,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             async (tabs) => {
               if (tabs.length > 0) {
                 const activeTab = tabs[0];
-                await injectContentScript(activeTab.id, activeTab.url);
+                await injectContentScript(
+                  activeTab.id,
+                  activeTab.url,
+                  "resumeCapture"
+                );
                 activeTabId = activeTab.id;
+                activeTabUrl = activeTab.url;
               }
             }
           );
@@ -226,8 +249,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           async (tabs) => {
             if (tabs.length > 0) {
               const activeTab = tabs[0];
-              await injectContentScript(activeTab.id, activeTab.url);
+              await injectContentScript(
+                activeTab.id,
+                activeTab.url,
+                "resumeCapture"
+              );
               activeTabId = activeTab.id;
+              activeTabUrl = activeTab.url;
             } else {
               console.warn("No active tab found to inject content script.");
             }

@@ -1,4 +1,4 @@
-import { record, google } from "../constants/images";
+import { record, right_arrow } from "../constants/images";
 type Props = {
   color: string;
   text: string;
@@ -25,16 +25,16 @@ const Button = (props: Props) => {
         {props.color === "primary" && (
           <img src={record} alt={`${props.text} button`} />
         )}
+        <p>{props.text}</p>
         {props.color === "google" && (
           <div className=" bg-white absolute left-0 rounded-full p-1 ">
             <img
-              src={google}
+              src={right_arrow}
               alt={`${props.text} button`}
-              className="w-6 h-6"
+              className="w-6 h-6 animate-pulse"
             />
           </div>
         )}
-        {props.text}
       </div>
     </button>
   );
