@@ -18,7 +18,7 @@ chrome.sidePanel
 // API : chrome.scripting
 // Purpose : The Scripting API allows extensions to inject scripts into web pages
 // Permission : "scripting" permission
-const injectContentScript = async (tabId, tabUrl) => {
+const injectContentScript = async (tabId, tabUrl, action) => {
   if (!isCapturing) {
     return false;
   }
@@ -48,6 +48,7 @@ const injectContentScript = async (tabId, tabUrl) => {
       await chrome.tabs.sendMessage(tabId, {
         action: "capture_status_changed",
         isCapturing: true,
+        actionType: action,
       });
     }
 
@@ -59,13 +60,14 @@ const injectContentScript = async (tabId, tabUrl) => {
   }
 };
 
-const disableContentScript = async (tabId) => {
+const disableContentScript = async (tabId, actionType) => {
   if (!tabId) return false;
 
   try {
     await chrome.tabs.sendMessage(tabId, {
       action: "capture_status_changed",
       isCapturing: false,
+      actionType: actionType,
     });
     console.log(`Content script disabled in tab ${tabId}`);
     return true;
@@ -162,15 +164,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const activeTab = tabs[0];
           activeTabId = activeTab.id; // Update the active tab ID
           activeTabUrl = activeTab.url; // Store the active tab URL
-          injectContentScript(activeTab.id, activeTab.url);
+          injectContentScript(activeTab.id, activeTab.url, "startCapture");
         } else {
           console.warn("No active tab found to inject content script.");
         }
-      });
-
-      chrome.tabs.sendMessage(activeTabId, {
-        action: "capture_status_changed",
-        isCapturing: isCapturing,
       });
 
       sendResponse({ success: true, isCapturing: true });
@@ -180,7 +177,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       isCapturing = false;
 
       if (activeTabId) {
-        disableContentScript(activeTabId);
+        disableContentScript(activeTabId, "stopCapture");
         activeTabId = null;
       }
 
@@ -191,7 +188,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       isCapturing = false;
 
       if (activeTabId) {
-        disableContentScript(activeTabId);
+        disableContentScript(activeTabId, "pauseCapture");
         activeTabId = null;
       }
 
@@ -213,7 +210,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             async (tabs) => {
               if (tabs.length > 0) {
                 const activeTab = tabs[0];
-                await injectContentScript(activeTab.id, activeTab.url);
+                await injectContentScript(
+                  activeTab.id,
+                  activeTab.url,
+                  "resumeCapture"
+                );
                 activeTabId = activeTab.id;
               }
             }
@@ -226,7 +227,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           async (tabs) => {
             if (tabs.length > 0) {
               const activeTab = tabs[0];
-              await injectContentScript(activeTab.id, activeTab.url);
+              await injectContentScript(
+                activeTab.id,
+                activeTab.url,
+                "resumeCapture"
+              );
               activeTabId = activeTab.id;
             } else {
               console.warn("No active tab found to inject content script.");

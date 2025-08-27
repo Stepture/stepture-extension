@@ -8,7 +8,7 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
     isCapturing = true;
   }
 });
-function showCaptureIndicator() {
+function showCaptureIndicator(messageType) {
   const existingIndicator = document.getElementById(
     "stepture-capture-indicator"
   );
@@ -127,11 +127,17 @@ function showCaptureIndicator() {
       color: #ccc;
     `;
     let countdown = 3;
-    timerCountdown.textContent = `Starting in ${countdown}s ...`;
+    timerCountdown.textContent =
+      messageType === "startCapture"
+        ? `Starting in ${countdown}s ...`
+        : `Resuming in ${countdown}s ...`;
     const countdownInterval = setInterval(() => {
       countdown -= 1;
       if (countdown > 0) {
-        timerCountdown.textContent = `Starting in ${countdown}s ...`;
+        timerCountdown.textContent =
+          messageType === "startCapture"
+            ? `Starting in ${countdown}s ...`
+            : `Resuming in ${countdown}s ...`;
       } else {
         clearInterval(countdownInterval);
       }
@@ -152,12 +158,57 @@ function showCaptureIndicator() {
         indicator.parentNode.removeChild(indicator);
       }
     }, 3500);
+  } else {
+    // Remove overlay and indicator if they exist
+    if (messageType === "pauseCapture" || messageType === "stopCapture") {
+      isCapturing = false;
+
+      // show a brief paused message
+      const pausedIndicator = document.createElement("div");
+      pausedIndicator.id = "stepture-capture-indicator";
+      pausedIndicator.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        z-index: 10000;
+        font-size: 18px;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 10px;
+        max-width: 300px;
+      `;
+      const pausedText = document.createElement("div");
+      pausedText.textContent =
+        messageType === "pauseCapture" ? "Capture Paused" : "Capture Stopped";
+      pausedText.style.cssText = `
+        line-height: 1.4;
+        font-weight: 500;
+      `;
+      pausedIndicator.appendChild(pausedText);
+      document.body.appendChild(pausedIndicator);
+      setTimeout(() => {
+        const existingPausedIndicator = document.getElementById(
+          "stepture-capture-indicator"
+        );
+        if (existingPausedIndicator) {
+          existingPausedIndicator.remove();
+        }
+      }, 2000);
+    }
   }
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
     isCapturing = message.isCapturing;
-    showCaptureIndicator();
+    showCaptureIndicator(message.actionType);
   }
 });
 
