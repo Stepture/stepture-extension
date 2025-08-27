@@ -241,13 +241,13 @@ const ResponsiveScreenshotItem = ({
   return (
     <div
       ref={containerRef}
-      className="screenshot-item border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
+      className="max-w-full border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
     >
       <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
         <p className="text-xs text-blue">Step {index + 1}</p>
       </div>
 
-      <div className="text-start p-2 text-base text-slate-800">
+      <div className=" max-w-[150px] text-start p-2 text-base text-slate-800">
         {info && (
           <div className="space-y-1">
             <p>
@@ -262,7 +262,7 @@ const ResponsiveScreenshotItem = ({
         )}
       </div>
 
-      <div className="relative w-full">
+      <div className="relative max-w-full">
         <img
           ref={imgRef}
           src={img}
@@ -704,6 +704,12 @@ const Home = ({ name }: { name: string }) => {
             color="secondary"
             text="View your docs"
             disabled={documentLoading}
+            onClick={() =>
+              window.open(
+                `${import.meta.env.VITE_FRONTEND_URL}/dashboard/created`,
+                "_blank"
+              )
+            }
           />
           {captures.length > 0 && (
             <Button
