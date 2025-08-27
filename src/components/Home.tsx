@@ -302,18 +302,30 @@ const ErrorDisplay = ({
 }: {
   error: string;
   onDismiss: () => void;
-}) => (
-  <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-    {error}
-    <button
-      onClick={onDismiss}
-      className="ml-2 text-red-500 hover:text-red-700"
-      aria-label="Dismiss error"
-    >
-      ×
-    </button>
-  </div>
-);
+}) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onDismiss();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div className="w-full mb-4 p-3 bg-blue-100 border border-blue-400 text-red-500 rounded">
+      <p>{error}</p>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={onDismiss}
+        className="ml-2 text-red-500 hover:text-red-700 bg-inherit"
+        aria-label="Dismiss error"
+      >
+        ×
+      </span>
+    </div>
+  );
+};
 
 const Home = ({ name }: { name: string }) => {
   const [isCaptured, setIsCaptured] = useState(false);
@@ -496,6 +508,12 @@ const Home = ({ name }: { name: string }) => {
 
   // Handle stop capture
   const handleStopCapture = useCallback(() => {
+    if (captures.length === 0) {
+      setError(
+        "There is no steps captured yet. Please capture some steps to create a document."
+      );
+      return;
+    }
     handleCaptureAction(
       "stopCapture",
       async () => {
@@ -523,7 +541,7 @@ const Home = ({ name }: { name: string }) => {
 
           if (data && data.id) {
             setTimeout(() => loadData(true), 500);
-            handleClearData();
+            handleClearData("stop");
             window.open(
               `${import.meta.env.VITE_FRONTEND_URL}/document/${data.id}`,
               "_blank"
@@ -543,22 +561,34 @@ const Home = ({ name }: { name: string }) => {
   }, [handleCaptureAction, loadData, captures]);
 
   // Handle clear data
-  const handleClearData = useCallback(async () => {
-    //  if (!confirm("Are you sure you want to clear all captured data?")) return;
-    setLoading(true);
-    try {
-      const response = await sendChromeMessage({ action: "clear_data" });
-      if (response.success) {
-        setCaptures([]);
-      } else {
-        throw new Error("Failed to clear data");
+  const handleClearData = useCallback(
+    async (action: string) => {
+      const clearConfirmed = async () => {
+        setLoading(true);
+        try {
+          const response = await sendChromeMessage({ action: "clear_data" });
+          if (response.success) {
+            setCaptures([]);
+          } else {
+            throw new Error("Failed to clear data");
+          }
+        } catch (error) {
+          setError("Failed to clear data. Please try again.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (action === "stop") {
+        await clearConfirmed();
+      } else if (!confirm("Are you sure you want to clear all captured data?"))
+        return;
+      else {
+        await clearConfirmed();
       }
-    } catch (error) {
-      setError("Failed to clear data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [sendChromeMessage]);
+    },
+    [sendChromeMessage]
+  );
 
   // Set up message listeners
   useEffect(() => {
@@ -658,7 +688,7 @@ const Home = ({ name }: { name: string }) => {
             </div>
             <div className="mt-4 flex justify-between items-center w-full">
               <Button
-                onClick={handleClearData}
+                onClick={() => handleClearData("clear")}
                 color="secondary"
                 text="Delete"
                 disabled={loading || documentLoading}
@@ -713,7 +743,7 @@ const Home = ({ name }: { name: string }) => {
           />
           {captures.length > 0 && (
             <Button
-              onClick={handleClearData}
+              onClick={() => handleClearData("clear")}
               color="secondary"
               text="Clear All Data"
               disabled={loading || documentLoading}
