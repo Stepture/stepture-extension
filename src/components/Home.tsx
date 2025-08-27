@@ -454,6 +454,7 @@ const Home = ({ name }: { name: string }) => {
 
   // Handle start capture
   const handleStartCapture = useCallback(() => {
+    setIsPaused(false);
     handleCaptureAction(
       "startCapture",
       () => setIsCaptured(true),
@@ -508,6 +509,7 @@ const Home = ({ name }: { name: string }) => {
 
   // Handle stop capture
   const handleStopCapture = useCallback(() => {
+    setIsPaused(false);
     if (captures.length === 0) {
       setError(
         "There is no steps captured yet. Please capture some steps to create a document."
