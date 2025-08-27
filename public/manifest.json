@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Stepture : Extension",
+  "name": "Stepture : Automated Documentation tool",
   "version": "1.0",
   "permissions": ["sidePanel", "tabs", "activeTab", "scripting", "storage"],
   "side_panel": {
