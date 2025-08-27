@@ -239,11 +239,6 @@ function showCaptureIndicator(messageType) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "capture_status_changed") {
-    console.log(
-      "Capture status changed:",
-      message.isCapturing,
-      message.actionType
-    );
     isCapturing = message.isCapturing;
     showCaptureIndicator(message.actionType);
   }

@@ -312,7 +312,7 @@ const ErrorDisplay = ({
   }, [onDismiss]);
 
   return (
-    <div className="w-full mb-4 p-3 bg-blue-100 border border-blue-400 text-red-500 rounded">
+    <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-500 rounded">
       <p>{error}</p>
       <span
         role="button"
@@ -616,6 +616,17 @@ const Home = ({ name }: { name: string }) => {
     }
   }, [captures.length]);
 
+  const handleCancelCapture = useCallback(() => {
+    handleCaptureAction(
+      "stopCapture",
+      () => {
+        setIsCaptured(false);
+        handleClearData("stop");
+      },
+      "Failed to cancel capture. Please try again."
+    );
+  }, [handleCaptureAction, handleClearData]);
+
   return (
     <div className="flex items-center justify-center flex-col w-full px-4 py-2">
       {/* Document Creation Loading Overlay */}
@@ -665,10 +676,18 @@ const Home = ({ name }: { name: string }) => {
                   </div>
                 ))
               ) : (
-                <p className="text-center text-gray-500">
-                  No screenshots captured yet. Click on elements to start
-                  capturing!
-                </p>
+                <>
+                  <p className="text-center text-gray-500">
+                    No screenshots captured yet. Click on the screen to start
+                    capturing!
+                  </p>
+                  <button
+                    onClick={handleCancelCapture}
+                    className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  >
+                    Cancel Capture
+                  </button>
+                </>
               )}
               {newScreenshotLoading && <LoadingSkeleton />}
             </div>
