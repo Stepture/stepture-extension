@@ -12,13 +12,6 @@ chrome.runtime.sendMessage({ action: "get_status" }, (response) => {
 });
 
 function showCaptureIndicator(messageType) {
-  const existingIndicator = document.getElementById(
-    "stepture-capture-indicator"
-  );
-  if (existingIndicator) {
-    existingIndicator.remove();
-  }
-
   if (isCapturing) {
     const overlay = document.createElement("div");
     overlay.id = "stepture-capture-overlay";
@@ -130,22 +123,32 @@ function showCaptureIndicator(messageType) {
       color: #ccc;
     `;
 
-    let countdown = 3;
+    let countdown;
     let countdownText = "";
+    let timeTaken;
 
     // Different messages based on the action type
     switch (messageType) {
       case "startCapture":
+        countdown = 3;
+        timeTaken = 3000;
         countdownText = `Starting in ${countdown}s ...`;
+
         break;
       case "resumeCapture":
+        timeTaken = 1000;
+        countdown = 1;
         countdownText = `Resuming in ${countdown}s ...`;
         break;
       case "navigation":
       case "tabActivated":
+        timeTaken = 1000;
+        countdown = 1;
         countdownText = `Capture active - Ready in ${countdown}s ...`;
         break;
       default:
+        countdown = 1;
+        timeTaken = 1000;
         countdownText = `Ready in ${countdown}s ...`;
     }
 
@@ -163,8 +166,6 @@ function showCaptureIndicator(messageType) {
             break;
           case "navigation":
           case "tabActivated":
-            timerCountdown.textContent = `Capture active - Ready in ${countdown}s ...`;
-            break;
           default:
             timerCountdown.textContent = `Ready in ${countdown}s ...`;
         }
@@ -175,7 +176,7 @@ function showCaptureIndicator(messageType) {
     }, 1000);
 
     indicator.appendChild(timerCountdown);
-    indicator.appendChild(clickIcon);
+    // indicator.appendChild(clickIcon);
     indicator.appendChild(textElement);
 
     document.body.appendChild(overlay);
@@ -188,7 +189,7 @@ function showCaptureIndicator(messageType) {
       if (indicator.parentNode) {
         indicator.parentNode.removeChild(indicator);
       }
-    }, 3500);
+    }, timeTaken);
   } else {
     // Remove overlay and indicator if they exist
     if (messageType === "pauseCapture" || messageType === "stopCapture") {

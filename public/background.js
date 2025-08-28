@@ -32,7 +32,6 @@ const injectContentScript = async (tabId, tabUrl, action) => {
     tabUrl.startsWith("moz-extension://") ||
     tabUrl.startsWith("file://")
   ) {
-    console.log(`Skipping injection for restricted URL: ${tabUrl}`);
     return false;
   }
 
@@ -51,8 +50,6 @@ const injectContentScript = async (tabId, tabUrl, action) => {
         actionType: action || "startCapture",
       });
     }
-
-    console.log(`Content script injected into tab ${tabId}`);
     return true;
   } catch (error) {
     console.error(`Failed to inject content script into tab ${tabId}:`, error);
@@ -69,13 +66,8 @@ const disableContentScript = async (tabId, actionType) => {
       isCapturing: false,
       actionType: actionType,
     });
-    console.log(`Content script disabled in tab ${tabId}`);
     return true;
   } catch (error) {
-    // Tab might be closed or script not injected - this is normal
-    console.log(
-      `Could not disable content script in tab ${tabId}: ${error.message}`
-    );
     return false;
   }
 };
@@ -124,12 +116,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     // Re-inject content script if capturing (for URL changes, redirects, etc.)
     if (isCapturing) {
-      const injected = await injectContentScript(tabId, tab.url, "navigation");
-      if (injected) {
-        console.log(
-          `Content script re-injected after navigation in tab ${tabId}`
-        );
-      }
+      await injectContentScript(tabId, tab.url, "navigation");
     }
   }
 });
@@ -144,31 +131,27 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   // Disable content script in the previously active tab
   if (previousTabId && previousTabId !== activeInfo.tabId) {
     await disableContentScript(previousTabId, "tabSwitch");
-    console.log(`Content script disabled in previous tab ${previousTabId}`);
   }
 
   // Update active tab ID
   activeTabId = activeInfo.tabId;
+
   try {
     const activeTab = await chrome.tabs.get(activeInfo.tabId);
+
     activeTabUrl = activeTab.url; // Store the active tab URL
 
     // Inject content script into the newly activated tab if capturing
-    if (isCapturing) {
+    if (isCapturing && activeTab.status === "complete") {
       const injected = await injectContentScript(
         activeTab.id,
         activeTab.url,
         "tabActivated"
       );
-      if (injected) {
-        console.log(
-          `Content script injected into new active tab ${activeTab.id}`
-        );
-      }
     }
   } catch (error) {
     console.error(`Failed to get tab info for ${activeInfo.tabId}:`, error);
-    activeTabUrl = null; // Reset URL if tab info cannot be retrieved
+    activeTabUrl = null;
   }
 });
 
@@ -374,24 +357,38 @@ async function dataURLtoBlob(dataURL) {
 const uploadQueue = [];
 
 async function checkUploadedStatus() {
-  const storageData = await chrome.storage.local.get({ captures: [] });
-  const pendingCaptures = storageData.captures.filter(
-    (capture) => capture.uploadStatus === "pending"
-  );
-  if (pendingCaptures.length > 0) {
-    for (const capture of pendingCaptures) {
-      await uploadInBackground(capture);
-    }
-  } else {
-    console.log("No pending captures to upload.");
-  }
+  return new Promise((resolve) => {
+    const checkPending = async () => {
+      const storageData = await chrome.storage.local.get({ captures: [] });
+      const pendingCaptures = storageData.captures.filter(
+        (capture) => capture.uploadStatus === "pending"
+      );
+
+      if (pendingCaptures.length === 0) {
+        resolve();
+      } else {
+        // Wait 1 second before checking again
+        setTimeout(checkPending, 1000);
+      }
+    };
+    checkPending();
+  });
 }
 
 async function uploadInBackground(captureData) {
   try {
     const formData = new FormData();
     const blob = await dataURLtoBlob(captureData.screenshot);
-    formData.append("file", blob, "screenshot.png");
+
+    const time = new Date(captureData.timestamp);
+    const year = time.getFullYear();
+    const month = String(time.getMonth() + 1).padStart(2, "0");
+    const day = String(time.getDate()).padStart(2, "0");
+    const minute = String(time.getMinutes()).padStart(2, "0");
+    const hour = String(time.getHours()).padStart(2, "0");
+    const name = `screenshot-${year}${month}${day}-${hour}${minute}.png`;
+
+    formData.append("file", blob, name);
 
     const response = await fetch(
       "http://localhost:8000/google-drive/upload-image",

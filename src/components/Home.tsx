@@ -126,24 +126,6 @@ const ResponsiveScreenshotItem = ({
           100;
       }
 
-      // Debug logging for the first item only
-      if (index === 0) {
-        console.log("Enhanced Position Calculation:", {
-          originalCoords: info.coordinates.viewport,
-          devicePixelRatio,
-          captureViewport: { width: viewportWidth, height: viewportHeight },
-          screenshotDimensions: {
-            width: actualScreenshotWidth,
-            height: actualScreenshotHeight,
-          },
-          calculatedPercent: { x: xPercent, y: yPercent },
-          scaledCoords: {
-            x: info.coordinates.viewport.x * devicePixelRatio,
-            y: info.coordinates.viewport.y * devicePixelRatio,
-          },
-        });
-      }
-
       return {
         left: `${Math.min(Math.max(xPercent, 0), 100)}%`,
         top: `${Math.min(Math.max(yPercent, 0), 100)}%`,
@@ -159,18 +141,6 @@ const ResponsiveScreenshotItem = ({
       (info.coordinates.viewport.x / originalScreenshotWidth) * 100;
     const yPercent =
       (info.coordinates.viewport.y / originalScreenshotHeight) * 100;
-
-    // Debug logging
-    if (index === 0) {
-      console.log("Fallback Position Calculation:", {
-        originalImageSize: {
-          width: originalScreenshotWidth,
-          height: originalScreenshotHeight,
-        },
-        viewportCoords: info.coordinates.viewport,
-        calculatedPercent: { x: xPercent, y: yPercent },
-      });
-    }
 
     return {
       left: `${Math.min(Math.max(xPercent, 0), 100)}%`,
@@ -357,8 +327,6 @@ const Home = ({ name }: { name: string }) => {
             info: message.message?.info,
             imgId: message.message?.imgId,
           };
-          // console.log("New screenshot captured:", newCapture);
-          // console.log(captures);
           setCaptures((prev) => [...prev, newCapture]);
         }
         break;
@@ -481,8 +449,6 @@ const Home = ({ name }: { name: string }) => {
   }, [handleCaptureAction]);
 
   const handleConvertSteps = async (stepsToCapture: CaptureData[]) => {
-    console.log("coverting steps ", stepsToCapture);
-    console.log("Converting steps to document format...");
     const steps = (stepsToCapture || []).map((capture, idx) => ({
       stepDescription: capture.info.textContent
         ? `${capture.info.textContent}`
@@ -503,8 +469,7 @@ const Home = ({ name }: { name: string }) => {
           }
         : undefined,
     }));
-    console.log("Converted steps:", steps);
-    return steps; // Added missing return statement
+    return steps;
   };
 
   // Handle stop capture
@@ -523,15 +488,11 @@ const Home = ({ name }: { name: string }) => {
         setDocumentLoading(true); // Start loading when document creation begins
 
         try {
-          // Load data first and wait for it to complete
           const stepsToCapture = (await loadData(
             true
           )) as unknown as CaptureData[];
 
-          console.log("Steps to convert:", stepsToCapture);
-
           const steps = await handleConvertSteps(stepsToCapture);
-          console.log("Steps to save:", steps);
 
           const datatosave = {
             title: "My Document" + new Date().toLocaleDateString(),
