@@ -494,8 +494,22 @@ const Home = ({ name }: { name: string }) => {
 
           const steps = await handleConvertSteps(stepsToCapture);
 
+          const time = new Date().toLocaleString("sv-SE", {
+            timeZone: "Asia/Bangkok",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+          const [datePart, timePart] = time.split(" ");
+          const YYYYMMDD = datePart;
+          const HHMM = timePart.replace(":", "");
+          const documentName = `Document-${YYYYMMDD}-${HHMM}`;
+
           const datatosave = {
-            title: "My Document" + new Date().toLocaleDateString(),
+            title: documentName,
             description: "Created from Stepture Extension",
             steps,
           };
