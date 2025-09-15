@@ -677,33 +677,35 @@ const Home = ({ name }: { name: string }) => {
                       How to Capture Steps:
                     </h3>
                     <ol className="text-xs text-blue-700 space-y-2">
-                      <li className="flex items-start">
+                      <li className="flex items-start justify-start">
                         <span className="font-semibold mr-2 text-blue-600">
-                          1.
+                          1.{" "}
                         </span>
-                        <span>
+                        <span className="text-start">
                           Navigate to the webpage you want to document.
                         </span>
                       </li>
-                      <li className="flex items-start">
+                      <li className="flex items-start justify-start">
                         <span className="font-semibold mr-2 text-blue-600">
-                          2.
+                          2.{" "}
                         </span>
-                        <span>Click on any the screen to capture it.</span>
+                        <span className="text-start">
+                          Click on any the screen to capture it.
+                        </span>
                       </li>
-                      <li className="flex items-start">
+                      <li className="flex items-start justify-start">
                         <span className="font-semibold mr-2 text-blue-600">
-                          3.
+                          3.{" "}
                         </span>
-                        <span>
+                        <span className="text-start">
                           Each click will automatically take a screenshot.
                         </span>
                       </li>
-                      <li className="flex items-start">
-                        <span className="font-semibold mr-2 text-blue-600">
-                          4.
+                      <li className="flex items-start justify-start">
+                        <span className="font-semibold mr-2  text-blue-600">
+                          4.{" "}
                         </span>
-                        <span>
+                        <span className="text-start">
                           When done, click "Stop & Create Document" to generate
                           your guide.
                         </span>
