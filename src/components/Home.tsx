@@ -208,21 +208,21 @@ const ResponsiveScreenshotItem = ({
 
     return () => observer.disconnect();
   }, []);
+
   return (
     <div
       ref={containerRef}
-      className="max-w-full border-1 border-corner rounded-md p-2.5 bg-white flex flex-col items-start gap-1"
+      className="w-full p-2.5 bg-white flex flex-col items-start gap-1"
     >
-      <div className="rounded-sm bg-background font-semibold color-blue px-2 py-1">
+      <div className="rounded-sm bg-background font-semibold color-blue py-1">
         <p className="text-xs text-blue">Step {index + 1}</p>
       </div>
 
-      <div className=" max-w-[150px] text-start p-2 text-base text-slate-800">
+      <div className="w-full text-start p-2 text-base text-slate-800 overflow-auto">
         {info && (
           <div className="space-y-1">
             <p>
-              <span className="font-medium">Click:</span>{" "}
-              <span className="text-slate-600">
+              <span className="text-slate-600 ">
                 {info.textContent && (
                   <span className="text-slate-800">"{info.textContent}"</span>
                 )}
@@ -231,36 +231,37 @@ const ResponsiveScreenshotItem = ({
           </div>
         )}
       </div>
+      {img && (
+        <div className="relative">
+          <img
+            ref={imgRef}
+            src={img}
+            alt={`Screenshot ${index + 1}`}
+            className="screenshot-img w-full rounded-md block"
+            loading="lazy"
+            onLoad={handleImageLoad}
+            onError={() =>
+              console.error(`Failed to load image for step ${index + 1}`)
+            }
+          />
 
-      <div className="relative max-w-full">
-        <img
-          ref={imgRef}
-          src={img}
-          alt={`Screenshot ${index + 1}`}
-          className="screenshot-img w-full rounded-md block"
-          loading="lazy"
-          onLoad={handleImageLoad}
-          onError={() =>
-            console.error(`Failed to load image for step ${index + 1}`)
-          }
-        />
-
-        {info?.coordinates &&
-          imageDimensions.width > 0 &&
-          containerWidth > 0 && (
-            <div
-              className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
-              style={{
-                ...getResponsivePosition(),
-                width: `${getIndicatorSize()}px`,
-                height: `${getIndicatorSize()}px`,
-              }}
-              aria-label={`Click indicator for step ${index + 1}`}
-            >
-              <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
-            </div>
-          )}
-      </div>
+          {info?.coordinates &&
+            imageDimensions.width > 0 &&
+            containerWidth > 0 && (
+              <div
+                className="absolute opacity-50 rounded-full border-4 border-blue-300 bg-blue-500 bg-opacity-30 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200"
+                style={{
+                  ...getResponsivePosition(),
+                  width: `${getIndicatorSize()}px`,
+                  height: `${getIndicatorSize()}px`,
+                }}
+                aria-label={`Click indicator for step ${index + 1}`}
+              >
+                <div className="absolute inset-0 animate-ping bg-blue-400 rounded-full opacity-50"></div>
+              </div>
+            )}
+        </div>
+      )}
     </div>
   );
 };
@@ -589,7 +590,7 @@ const Home = ({ name }: { name: string }) => {
   }, [handleCaptureAction, handleClearData]);
 
   return (
-    <div className="flex items-center justify-center flex-col w-full px-4 py-2">
+    <div className="flex items-center justify-center flex-col w-full px-2 py-2">
       {/* Document Creation Loading Overlay */}
       {documentLoading && <DocumentCreationLoading />}
 
@@ -597,12 +598,45 @@ const Home = ({ name }: { name: string }) => {
       {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
 
       {!isCaptured ? (
-        <div className="flex flex-col items-center justify-center w-full h-100vh">
+        <div className="flex flex-col items-center justify-center w-full p-2 h-100vh">
           <img src={stepture} alt="Stepture Logo" className="w-18 h-18" />
           <p className="font-semibold mt-2 text-lg">Hey There, {name}</p>
-          <p className="text-gray text-xs mb-8 mt-2">
+          <p className="text-gray text-xs mb-4 mt-2">
             You can start by capturing your steps.
           </p>
+
+          {/* Step-by-step guide */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-semibold text-sm text-blue-800 mb-3">
+              How to Capture Steps:
+            </h3>
+            <ol className="text-xs text-blue-700 space-y-2">
+              <li className="flex items-start">
+                <span className="font-semibold mr-2 text-blue-600">1.</span>
+                <span>Click "Start Capture" below to begin recording.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="font-semibold mr-2 text-blue-600">2.</span>
+                <span>Navigate to the webpage you want to document.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="font-semibold mr-2 text-blue-600">3.</span>
+                <span>Click on the screen to capture it.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="font-semibold mr-2 text-blue-600">4.</span>
+                <span>Each click will automatically take a screenshot.</span>
+              </li>
+              <li className="flex items-start">
+                <span className="font-semibold mr-2 text-blue-600">5.</span>
+                <span>
+                  When done, click "Stop & Create Document" to generate your
+                  guide.
+                </span>
+              </li>
+            </ol>
+          </div>
+
           <Button
             onClick={handleStartCapture}
             color="primary"
@@ -618,9 +652,9 @@ const Home = ({ name }: { name: string }) => {
           )}
         </div>
       ) : (
-        <div className="relative w-full">
-          <div className="mt-6 w-full bg-background p-4 rounded-md overflow-y-scroll no-scrollbar mb-40">
-            <div className="screenshots grid gap-4">
+        <div className="relative w-full mx-2">
+          <div className="mt-6 w-full bg-background overflow-auto no-scrollbar mb-40">
+            <div className="grid gap-4 w-full">
               {loading && captures.length === 0 ? (
                 <p className="text-center text-gray-500">Loading...</p>
               ) : captures.length > 0 ? (
@@ -638,9 +672,47 @@ const Home = ({ name }: { name: string }) => {
                 ))
               ) : (
                 <>
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex flex-col justify-start items-start">
+                    <h3 className="font-semibold text-sm text-blue-800 mb-3">
+                      How to Capture Steps:
+                    </h3>
+                    <ol className="text-xs text-blue-700 space-y-2">
+                      <li className="flex items-start">
+                        <span className="font-semibold mr-2 text-blue-600">
+                          1.
+                        </span>
+                        <span>
+                          Navigate to the webpage you want to document.
+                        </span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="font-semibold mr-2 text-blue-600">
+                          2.
+                        </span>
+                        <span>Click on any the screen to capture it.</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="font-semibold mr-2 text-blue-600">
+                          3.
+                        </span>
+                        <span>
+                          Each click will automatically take a screenshot.
+                        </span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="font-semibold mr-2 text-blue-600">
+                          4.
+                        </span>
+                        <span>
+                          When done, click "Stop & Create Document" to generate
+                          your guide.
+                        </span>
+                      </li>
+                    </ol>
+                  </div>
                   <p className="text-center text-gray-500">
                     No screenshots captured yet. Click on the screen to start
-                    capturing!
+                    capturing.
                   </p>
                   <button
                     onClick={handleCancelCapture}

@@ -431,7 +431,7 @@ const saveTabAsStep = async (tab) => {
       screenshot: null,
       imgId: null,
       info: {
-        textContent: `${tab?.tab}`,
+        textContent: `Navigate to: ${tab?.tab}`,
         coordinates: { viewport: { x: 0, y: 0 } },
         captureContext: {
           devicePixelRatio: 1,

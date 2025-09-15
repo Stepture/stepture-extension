@@ -272,7 +272,7 @@ document.addEventListener("click", async (event) => {
     id: element.id || "None",
     className: element.className || "None",
     textContent: element.textContent
-      ? element.textContent.trim().substring(0, 100)
+      ? `Click: ${element.textContent.trim().substring(0, 100)}`
       : "",
     href: element.href || "None",
     type: element.type || "None",

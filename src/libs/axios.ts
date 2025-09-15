@@ -20,8 +20,7 @@ type CreateDocument = {
 };
 
 const BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  "https://stepture-backend.eastus.cloudapp.azure.com/api";
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:8000/api";
 
 const refreshApi = axios.create({
   baseURL: BASE_URL,
