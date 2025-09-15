@@ -335,7 +335,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Helper function to check authentication status
 async function checkAuthStatus() {
   try {
-    const response = await fetch("http://https://stepture.app/auth/me", {
+    const response = await fetch("https://stepture.app/api/auth/me", {
       method: "GET",
       credentials: "include",
     });
@@ -391,7 +391,7 @@ async function uploadInBackground(captureData) {
     formData.append("file", blob, name);
 
     const response = await fetch(
-      "http://https://stepture.app/google-drive/upload-image",
+      "https://stepture.app/api/google-drive/upload-image",
       {
         method: "POST",
         body: formData,
