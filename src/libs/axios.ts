@@ -20,7 +20,7 @@ type CreateDocument = {
 };
 
 const BASE_URL =
-  import.meta.env.VITE_BACKEND_URL || "http://https://stepture.app/api";
+  import.meta.env.VITE_BACKEND_URL || "https://stepture.app/api/";
 
 const refreshApi = axios.create({
   baseURL: BASE_URL,
