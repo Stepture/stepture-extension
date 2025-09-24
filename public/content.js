@@ -142,14 +142,7 @@ function showCaptureIndicator(messageType) {
         break;
       case "navigation":
       case "tabActivated":
-        timeTaken = 1000;
-        countdown = 1;
-        countdownText = `Capture active - Ready in ${countdown}s ...`;
-        break;
       default:
-        countdown = 1;
-        timeTaken = 1000;
-        countdownText = `Ready in ${countdown}s ...`;
     }
 
     timerCountdown.textContent = countdownText;
