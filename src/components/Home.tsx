@@ -212,19 +212,21 @@ const ResponsiveScreenshotItem = ({
   return (
     <div
       ref={containerRef}
-      className="w-full p-2.5 bg-white flex flex-col items-start gap-1"
+      className="w-full max-w-full p-2.5 bg-white flex flex-col items-start gap-1 overflow-hidden"
     >
       <div className="rounded-sm bg-background font-semibold color-blue py-1">
         <p className="text-xs text-blue">Step {index + 1}</p>
       </div>
 
-      <div className="w-full text-start p-2 text-base text-slate-800 overflow-auto">
+      <div className="w-full text-start p-2 text-base text-slate-800 overflow-hidden">
         {info && (
-          <div className="space-y-1">
-            <p>
-              <span className="text-slate-600 ">
+          <div className="space-y-1 max-w-[260px] sm:max-w-[400px] md:max-w-[600px] lg:max-w-[800px]">
+            <p className="break-words overflow-wrap-anywhere">
+              <span className="text-slate-600 break-words">
                 {info.textContent && (
-                  <span className="text-slate-800">"{info.textContent}"</span>
+                  <span className="text-slate-800 break-words">
+                    "{info.textContent}"
+                  </span>
                 )}
               </span>
             </p>
@@ -232,12 +234,12 @@ const ResponsiveScreenshotItem = ({
         )}
       </div>
       {img && (
-        <div className="relative">
+        <div className="relative w-full">
           <img
             ref={imgRef}
             src={img}
             alt={`Screenshot ${index + 1}`}
-            className="screenshot-img w-full rounded-md block"
+            className="w-full h-auto rounded-md block object-contain"
             loading="lazy"
             onLoad={handleImageLoad}
             onError={() =>
@@ -629,9 +631,8 @@ const Home = ({ name }: { name: string }) => {
               </li>
               <li className="flex items-start">
                 <span className="font-semibold mr-2 text-blue-600">5.</span>
-                <span>
-                  When done, click "Stop & Create Document" to generate your
-                  guide.
+                <span className="text-start">
+                  When done, click "Stop Capture" to generate your guide.
                 </span>
               </li>
             </ol>
@@ -706,8 +707,8 @@ const Home = ({ name }: { name: string }) => {
                           4.{" "}
                         </span>
                         <span className="text-start">
-                          When done, click "Stop & Create Document" to generate
-                          your guide.
+                          When done, click "Stop Capture" to generate your
+                          guide.
                         </span>
                       </li>
                     </ol>
@@ -718,7 +719,8 @@ const Home = ({ name }: { name: string }) => {
                   </p>
                   <button
                     onClick={handleCancelCapture}
-                    className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200 border-0 outline-none focus:outline-none active:outline-none"
+                    style={{ backgroundColor: "#5575cc", color: "white" }}
                   >
                     Cancel Capture
                   </button>
