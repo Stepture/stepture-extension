@@ -286,6 +286,9 @@ document.addEventListener("click", async (event) => {
     },
   };
 
+  // Handle navigation for various clickable elements
+  handleElementNavigation(element, event);
+
   try {
     if (isCapturing) {
       showClickFeedback(element, pageX, pageY);
@@ -352,4 +355,160 @@ function showClickFeedback(element, x, y) {
       feedback.parentNode.removeChild(feedback);
     }
   }, 600);
+}
+
+// Handle navigation for various types of clickable elements
+function handleElementNavigation(element, event) {
+  // Check if element or any parent has navigation behavior
+  let currentElement = element;
+  let navigationInfo = null;
+
+  // Traverse up the DOM tree to find navigation elements
+  while (currentElement && currentElement !== document.body) {
+    navigationInfo = getNavigationInfo(currentElement);
+    if (navigationInfo) {
+      break;
+    }
+    currentElement = currentElement.parentElement;
+  }
+
+  if (navigationInfo) {
+    event.preventDefault();
+    setTimeout(() => {
+      executeNavigation(navigationInfo);
+    }, 300);
+  }
+}
+
+// Get navigation information from an element
+function getNavigationInfo(element) {
+  // Handle anchor tags
+  if (element.tagName === "A" && element.href) {
+    return {
+      type: "href",
+      url: element.href,
+      target: element.target || "_self",
+    };
+  }
+
+  // Handle elements with data-href or data-url attributes
+  if (element.dataset.href) {
+    return {
+      type: "href",
+      url: element.dataset.href,
+      target: element.dataset.target || "_self",
+    };
+  }
+
+  if (element.dataset.url) {
+    return {
+      type: "href",
+      url: element.dataset.url,
+      target: element.dataset.target || "_self",
+    };
+  }
+
+  // Handle elements with onclick navigation patterns
+  const onClick = element.getAttribute("onclick");
+  if (onClick) {
+    // Check for window.location patterns
+    const locationMatch = onClick.match(
+      /window\.location(?:\.href)?\s*=\s*['"`]([^'"`]+)['"`]/
+    );
+    if (locationMatch) {
+      return {
+        type: "href",
+        url: locationMatch[1],
+        target: "_self",
+      };
+    }
+
+    // Check for window.open patterns
+    const openMatch = onClick.match(/window\.open\s*\(\s*['"`]([^'"`]+)['"`]/);
+    if (openMatch) {
+      return {
+        type: "href",
+        url: openMatch[1],
+        target: "_blank",
+      };
+    }
+  }
+
+  // Handle button elements with form submission
+  if (element.tagName === "BUTTON" && element.type === "submit") {
+    const form = element.closest("form");
+    if (form) {
+      return {
+        type: "form",
+        form: form,
+      };
+    }
+  }
+
+  // Handle elements with role="button" and navigation attributes
+  if (
+    element.getAttribute("role") === "button" ||
+    element.getAttribute("role") === "link"
+  ) {
+    // Check for data attributes
+    if (element.dataset.href || element.dataset.url) {
+      return {
+        type: "href",
+        url: element.dataset.href || element.dataset.url,
+        target: element.dataset.target || "_self",
+      };
+    }
+  }
+
+  // Handle elements that look like buttons or links based on styling/classes
+  const classList = element.classList.toString().toLowerCase();
+  const isButtonLike =
+    classList.includes("btn") ||
+    classList.includes("button") ||
+    classList.includes("link") ||
+    classList.includes("nav") ||
+    element.style.cursor === "pointer";
+
+  if (isButtonLike) {
+    // Check for data attributes on button-like elements
+    if (element.dataset.href || element.dataset.url) {
+      return {
+        type: "href",
+        url: element.dataset.href || element.dataset.url,
+        target: element.dataset.target || "_self",
+      };
+    }
+
+    // Check for nested anchor tags
+    const nestedAnchor = element.querySelector("a[href]");
+    if (nestedAnchor) {
+      return {
+        type: "href",
+        url: nestedAnchor.href,
+        target: nestedAnchor.target || "_self",
+      };
+    }
+  }
+
+  return null;
+}
+
+// Execute the navigation based on the type
+function executeNavigation(navigationInfo) {
+  switch (navigationInfo.type) {
+    case "href":
+      if (navigationInfo.target === "_blank") {
+        window.open(navigationInfo.url, "_blank");
+      } else {
+        window.location.href = navigationInfo.url;
+      }
+      break;
+
+    case "form":
+      navigationInfo.form.submit();
+      break;
+
+    default:
+      console.log("Unknown navigation type:", navigationInfo.type);
+  }
 }
