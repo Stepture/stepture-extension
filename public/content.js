@@ -169,7 +169,6 @@ function showCaptureIndicator(messageType) {
     }, 1000);
 
     indicator.appendChild(timerCountdown);
-    // indicator.appendChild(clickIcon);
     indicator.appendChild(textElement);
 
     document.body.appendChild(overlay);
@@ -373,10 +372,18 @@ function handleElementNavigation(element, event) {
   }
 
   if (navigationInfo) {
-    event.preventDefault();
-    setTimeout(() => {
-      executeNavigation(navigationInfo);
-    }, 300);
+    // For form submissions on complex web applications (like GitHub),
+    // don't interfere with the default behavior at all
+    if (navigationInfo.type === "form") {
+      // Let the form submit naturally without any interference
+      return;
+    } else {
+      // For other navigation types, prevent default and handle manually
+      event.preventDefault();
+      setTimeout(() => {
+        executeNavigation(navigationInfo);
+      }, 300);
+    }
   }
 }
 
@@ -388,6 +395,7 @@ function getNavigationInfo(element) {
       type: "href",
       url: element.href,
       target: element.target || "_self",
+      element: element,
     };
   }
 
@@ -397,6 +405,7 @@ function getNavigationInfo(element) {
       type: "href",
       url: element.dataset.href,
       target: element.dataset.target || "_self",
+      element: element,
     };
   }
 
@@ -405,6 +414,7 @@ function getNavigationInfo(element) {
       type: "href",
       url: element.dataset.url,
       target: element.dataset.target || "_self",
+      element: element,
     };
   }
 
@@ -420,6 +430,7 @@ function getNavigationInfo(element) {
         type: "href",
         url: locationMatch[1],
         target: "_self",
+        element: element,
       };
     }
 
@@ -430,17 +441,44 @@ function getNavigationInfo(element) {
         type: "href",
         url: openMatch[1],
         target: "_blank",
+        element: element,
       };
     }
   }
 
-  // Handle button elements with form submission
+  // Handle button elements with form submission (including child elements of submit buttons)
   if (element.tagName === "BUTTON" && element.type === "submit") {
     const form = element.closest("form");
     if (form) {
       return {
         type: "form",
         form: form,
+        element: element,
+      };
+    }
+  }
+
+  // Handle clicks on child elements of submit buttons
+  const submitButton = element.closest('button[type="submit"]');
+  if (submitButton) {
+    const form = submitButton.closest("form");
+    if (form) {
+      return {
+        type: "form",
+        form: form,
+        element: submitButton,
+      };
+    }
+  }
+
+  // Handle input elements with form submission
+  if (element.tagName === "INPUT" && element.type === "submit") {
+    const form = element.closest("form");
+    if (form) {
+      return {
+        type: "form",
+        form: form,
+        element: element,
       };
     }
   }
@@ -456,6 +494,7 @@ function getNavigationInfo(element) {
         type: "href",
         url: element.dataset.href || element.dataset.url,
         target: element.dataset.target || "_self",
+        element: element,
       };
     }
   }
@@ -476,6 +515,7 @@ function getNavigationInfo(element) {
         type: "href",
         url: element.dataset.href || element.dataset.url,
         target: element.dataset.target || "_self",
+        element: element,
       };
     }
 
@@ -486,8 +526,30 @@ function getNavigationInfo(element) {
         type: "href",
         url: nestedAnchor.href,
         target: nestedAnchor.target || "_self",
+        element: element,
       };
     }
+  }
+
+  // Fallback for any clickable element that doesn't match specific patterns
+  // This ensures normal click behavior for elements that might have JavaScript handlers
+  // But exclude form submit buttons as they are handled above
+  if (
+    (element.onclick ||
+      element.getAttribute("onclick") ||
+      element.style.cursor === "pointer" ||
+      element.getAttribute("role") === "button" ||
+      (element.tagName === "BUTTON" && element.type !== "submit") ||
+      (element.tagName === "INPUT" && element.type !== "submit") ||
+      element.classList.toString().toLowerCase().includes("click")) &&
+    // Exclude form submit elements
+    !(element.tagName === "BUTTON" && element.type === "submit") &&
+    !(element.tagName === "INPUT" && element.type === "submit")
+  ) {
+    return {
+      type: "unknown",
+      element: element,
+    };
   }
 
   return null;
@@ -505,10 +567,34 @@ function executeNavigation(navigationInfo) {
       break;
 
     case "form":
-      navigationInfo.form.submit();
+      // For form submissions, we need to trigger the submit event properly
+      // to ensure all form validation and event handlers are called
+      const form = navigationInfo.form;
+      const submitEvent = new Event("submit", {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      // Dispatch the submit event, if it's not prevented, submit the form
+      const eventNotPrevented = form.dispatchEvent(submitEvent);
+      if (eventNotPrevented) {
+        form.submit();
+      }
       break;
+
+    // case "unknown":
+    //   // For unknown types, try to trigger a click event on the element
+    //   // This allows any attached JavaScript handlers to run
+    //   const clickEvent = new MouseEvent("click", {
+    //     bubbles: true,
+    //     cancelable: true,
+    //     view: window,
+    //   });
+    //   navigationInfo.element.dispatchEvent(clickEvent);
+    //   break;
 
     default:
       console.log("Unknown navigation type:", navigationInfo.type);
+      break;
   }
 }
