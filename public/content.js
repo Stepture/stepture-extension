@@ -142,14 +142,7 @@ function showCaptureIndicator(messageType) {
         break;
       case "navigation":
       case "tabActivated":
-        timeTaken = 1000;
-        countdown = 1;
-        countdownText = `Capture active - Ready in ${countdown}s ...`;
-        break;
       default:
-        countdown = 1;
-        timeTaken = 1000;
-        countdownText = `Ready in ${countdown}s ...`;
     }
 
     timerCountdown.textContent = countdownText;
@@ -176,7 +169,6 @@ function showCaptureIndicator(messageType) {
     }, 1000);
 
     indicator.appendChild(timerCountdown);
-    // indicator.appendChild(clickIcon);
     indicator.appendChild(textElement);
 
     document.body.appendChild(overlay);
@@ -293,6 +285,9 @@ document.addEventListener("click", async (event) => {
     },
   };
 
+  // Handle navigation for various clickable elements
+  handleElementNavigation(element, event);
+
   try {
     if (isCapturing) {
       showClickFeedback(element, pageX, pageY);
@@ -359,4 +354,247 @@ function showClickFeedback(element, x, y) {
       feedback.parentNode.removeChild(feedback);
     }
   }, 600);
+}
+
+// Handle navigation for various types of clickable elements
+function handleElementNavigation(element, event) {
+  // Check if element or any parent has navigation behavior
+  let currentElement = element;
+  let navigationInfo = null;
+
+  // Traverse up the DOM tree to find navigation elements
+  while (currentElement && currentElement !== document.body) {
+    navigationInfo = getNavigationInfo(currentElement);
+    if (navigationInfo) {
+      break;
+    }
+    currentElement = currentElement.parentElement;
+  }
+
+  if (navigationInfo) {
+    // For form submissions on complex web applications (like GitHub),
+    // don't interfere with the default behavior at all
+    if (navigationInfo.type === "form") {
+      // Let the form submit naturally without any interference
+      return;
+    } else {
+      // For other navigation types, prevent default and handle manually
+      event.preventDefault();
+      setTimeout(() => {
+        executeNavigation(navigationInfo);
+      }, 300);
+    }
+  }
+}
+
+// Get navigation information from an element
+function getNavigationInfo(element) {
+  // Handle anchor tags
+  if (element.tagName === "A" && element.href) {
+    return {
+      type: "href",
+      url: element.href,
+      target: element.target || "_self",
+      element: element,
+    };
+  }
+
+  // Handle elements with data-href or data-url attributes
+  if (element.dataset.href) {
+    return {
+      type: "href",
+      url: element.dataset.href,
+      target: element.dataset.target || "_self",
+      element: element,
+    };
+  }
+
+  if (element.dataset.url) {
+    return {
+      type: "href",
+      url: element.dataset.url,
+      target: element.dataset.target || "_self",
+      element: element,
+    };
+  }
+
+  // Handle elements with onclick navigation patterns
+  const onClick = element.getAttribute("onclick");
+  if (onClick) {
+    // Check for window.location patterns
+    const locationMatch = onClick.match(
+      /window\.location(?:\.href)?\s*=\s*['"`]([^'"`]+)['"`]/
+    );
+    if (locationMatch) {
+      return {
+        type: "href",
+        url: locationMatch[1],
+        target: "_self",
+        element: element,
+      };
+    }
+
+    // Check for window.open patterns
+    const openMatch = onClick.match(/window\.open\s*\(\s*['"`]([^'"`]+)['"`]/);
+    if (openMatch) {
+      return {
+        type: "href",
+        url: openMatch[1],
+        target: "_blank",
+        element: element,
+      };
+    }
+  }
+
+  // Handle button elements with form submission (including child elements of submit buttons)
+  if (element.tagName === "BUTTON" && element.type === "submit") {
+    const form = element.closest("form");
+    if (form) {
+      return {
+        type: "form",
+        form: form,
+        element: element,
+      };
+    }
+  }
+
+  // Handle clicks on child elements of submit buttons
+  const submitButton = element.closest('button[type="submit"]');
+  if (submitButton) {
+    const form = submitButton.closest("form");
+    if (form) {
+      return {
+        type: "form",
+        form: form,
+        element: submitButton,
+      };
+    }
+  }
+
+  // Handle input elements with form submission
+  if (element.tagName === "INPUT" && element.type === "submit") {
+    const form = element.closest("form");
+    if (form) {
+      return {
+        type: "form",
+        form: form,
+        element: element,
+      };
+    }
+  }
+
+  // Handle elements with role="button" and navigation attributes
+  if (
+    element.getAttribute("role") === "button" ||
+    element.getAttribute("role") === "link"
+  ) {
+    // Check for data attributes
+    if (element.dataset.href || element.dataset.url) {
+      return {
+        type: "href",
+        url: element.dataset.href || element.dataset.url,
+        target: element.dataset.target || "_self",
+        element: element,
+      };
+    }
+  }
+
+  // Handle elements that look like buttons or links based on styling/classes
+  const classList = element.classList.toString().toLowerCase();
+  const isButtonLike =
+    classList.includes("btn") ||
+    classList.includes("button") ||
+    classList.includes("link") ||
+    classList.includes("nav") ||
+    element.style.cursor === "pointer";
+
+  if (isButtonLike) {
+    // Check for data attributes on button-like elements
+    if (element.dataset.href || element.dataset.url) {
+      return {
+        type: "href",
+        url: element.dataset.href || element.dataset.url,
+        target: element.dataset.target || "_self",
+        element: element,
+      };
+    }
+
+    // Check for nested anchor tags
+    const nestedAnchor = element.querySelector("a[href]");
+    if (nestedAnchor) {
+      return {
+        type: "href",
+        url: nestedAnchor.href,
+        target: nestedAnchor.target || "_self",
+        element: element,
+      };
+    }
+  }
+
+  // Fallback for any clickable element that doesn't match specific patterns
+  // This ensures normal click behavior for elements that might have JavaScript handlers
+  // But exclude form submit buttons as they are handled above
+  if (
+    (element.onclick ||
+      element.getAttribute("onclick") ||
+      element.style.cursor === "pointer" ||
+      element.getAttribute("role") === "button" ||
+      (element.tagName === "BUTTON" && element.type !== "submit") ||
+      (element.tagName === "INPUT" && element.type !== "submit") ||
+      element.classList.toString().toLowerCase().includes("click")) &&
+    // Exclude form submit elements
+    !(element.tagName === "BUTTON" && element.type === "submit") &&
+    !(element.tagName === "INPUT" && element.type === "submit")
+  ) {
+    return {
+      type: "unknown",
+      element: element,
+    };
+  }
+
+  return null;
+}
+
+// Execute the navigation based on the type
+function executeNavigation(navigationInfo) {
+  switch (navigationInfo.type) {
+    case "href":
+      if (navigationInfo.target === "_blank") {
+        window.open(navigationInfo.url, "_blank");
+      } else {
+        window.location.href = navigationInfo.url;
+      }
+      break;
+
+    case "form":
+      // For form submissions, we need to trigger the submit event properly
+      // to ensure all form validation and event handlers are called
+      const form = navigationInfo.form;
+      const submitEvent = new Event("submit", {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      // Dispatch the submit event, if it's not prevented, submit the form
+      const eventNotPrevented = form.dispatchEvent(submitEvent);
+      if (eventNotPrevented) {
+        form.submit();
+      }
+      break;
+
+    // case "unknown":
+    //   // For unknown types, try to trigger a click event on the element
+    //   // This allows any attached JavaScript handlers to run
+    //   const clickEvent = new MouseEvent("click", {
+    //     bubbles: true,
+    //     cancelable: true,
+    //     view: window,
+    //   });
+    //   navigationInfo.element.dispatchEvent(clickEvent);
+    //   break;
+
+    default:
+      console.log("Unknown navigation type:", navigationInfo.type);
+      break;
+  }
 }
