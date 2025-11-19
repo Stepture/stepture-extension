@@ -1,56 +1,56 @@
-# Stepture : Extension
+# Stepture Extension
 
-# React + TypeScript + Vite
+<div align="center">
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Automated Documentation Tool for Chrome**
 
-Currently, two official plugins are available:
+Chrome browser extension that automatically captures user interactions to create step-by-step visual documentation guides.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+</div>
 
-## Expanding the ESLint configuration
+## Overview
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Stepture is a Manifest V3 Chrome extension that helps in documentation creation by automatically capturing screenshots and tracking user interactions as they navigate through web applications. Simply start capturing, perform your workflow, and Stepture generates a complete visual guide with annotated screenshots showing exactly where you clicked.
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-});
-```
+## Features
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Capture Capabilities
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
+- **Automatic Screenshot Capture** - Takes screenshots on every user's click interaction
+- **Smart Click Tracking** - Records exact click coordinates with visual indicators
+- **Navigation Detection** - Automatically tracks page navigations as separate steps
+- **Tab-Aware Capture** - Intelligently manages capture state across browser tabs
+- **Pause & Resume** - Flexible capture control for complex workflows
+- **Device Context Recording** - Captures viewport dimensions, pixel ratio, and screen resolution
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    "react-x": reactX,
-    "react-dom": reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs["recommended-typescript"].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-});
-```
+### User Experience
+
+- **Side Panel Interface** - Clean, non-intrusive React-based UI in Chrome's side panel
+- **Google OAuth Authentication** - Secure authentication via Stepture platform
+- **Real-Time Preview** - See captured screenshots with annotations as you work
+- **Responsive Display** - Click indicators automatically adjust to container width
+- **Loading States** - Smooth skeleton screens and progress indicators
+- **Built-In Instructions** - Integrated user guide for easy onboarding
+
+### Technical Highlights
+
+- **Background Upload** - Asynchronous screenshot uploads to Google Drive
+- **Smart Link Detection** - Handles various navigation patterns (links, buttons, forms)
+- **Form Compatibility** - Preserves form functionality during capture
+- **Local Storage Management** - Efficient Chrome local storage usage
+- **Auto Token Refresh** - Seamless authentication with automatic token renewal
+
+### Managing Captures
+
+- **Pause** - Temporarily stop capturing without ending the session
+- **Resume** - Continue capturing from where you paused
+- **Stop** - End the capture and create your documentation
+
+### Creating Documentation
+
+1. Click **Stop Capture** when finished
+2. The extension uploads all screenshots to Google Drive
+3. A new document is created on the Stepture platform
+4. Your browser automatically opens the generated guide
+
+**Built and Maintained by Stepture Team**
