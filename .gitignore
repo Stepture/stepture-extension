@@ -26,3 +26,4 @@ dist-ssr
 *.zip
 .env.example
 .env.production
+README-draft.md
