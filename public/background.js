@@ -99,9 +99,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (
     changeInfo.status === "complete" &&
     tab.url &&
-    (tab.url.includes("https://stepture.app/auth/success") ||
-      tab.url.includes("https://stepture.app/login") ||
-      tab.url.includes("https://stepture.app/logout"))
+    (tab.url.includes("https://stepture.site/auth/success") ||
+      tab.url.includes("https://stepture.site/login") ||
+      tab.url.includes("https://stepture.site/logout"))
   ) {
     await checkAuthStatus();
   }
@@ -335,7 +335,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Helper function to check authentication status
 async function checkAuthStatus() {
   try {
-    const response = await fetch("https://stepture.app/api/auth/me", {
+    const response = await fetch("https://stepture.site/api/auth/me", {
       method: "GET",
       credentials: "include",
     });
@@ -391,7 +391,7 @@ async function uploadInBackground(captureData) {
     formData.append("file", blob, name);
 
     const response = await fetch(
-      "https://stepture.app/api/google-drive/upload-image",
+      "https://stepture.site/api/google-drive/upload-image",
       {
         method: "POST",
         body: formData,
